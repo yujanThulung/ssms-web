@@ -1,40 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import type { AuthUser } from "./ AuthContext";
 
-// Dummy user — replace with real /me API response later
-const DUMMY_USER: AuthUser = {
-  id: "c2cd8428-087c-4b1e-9ee1-32d967179f6d",
-  email: "super@ssms.edu.np",
-  username: "Super",
-  fullName: "Ramesh Bhandari",
-  phone: null,
-  status: "ACTIVE",
-  role: {
-    id: "b6c0e43b-1b82-4cf6-859a-8c7ffdbfc78e",
-    name: "SUPER_ADMIN",
-    description: "Full system authority",
-    isSystemRole: true,
-  },
-  permissions: [
-    { feature: "student", action: "VIEW" },
-    { feature: "student", action: "CREATE" },
-    { feature: "student", action: "UPDATE" },
-    { feature: "student", action: "DELETE" },
-    { feature: "account", action: "VIEW" },
-    { feature: "account", action: "CREATE" },
-    { feature: "account", action: "UPDATE" },
-    { feature: "account", action: "DELETE" },
-    { feature: "role", action: "VIEW" },
-    { feature: "role", action: "UPDATE" },
-    { feature: "user", action: "VIEW" },
-    { feature: "user", action: "CREATE" },
-    { feature: "user", action: "UPDATE" },
-    { feature: "user", action: "DELETE" },
-    { feature: "dashboard", action: "VIEW" },
-    { feature: "settings", action: "VIEW" },
-  ],
-};
-
 export type RoleName = "SUPER_ADMIN" | "ADMIN" | "ACCOUNTANT" | "TEACHER";
 
 export const ROLES: RoleName[] = [
@@ -44,84 +10,121 @@ export const ROLES: RoleName[] = [
   "TEACHER",
 ];
 
-// Dummy users per role — for UI preview switcher
-const ROLE_USERS: Record<RoleName, AuthUser> = {
-  SUPER_ADMIN: DUMMY_USER,
+export type PermissionModule = {
+  key: string;
+  label: string;
+  group: string;
+  actions: string[];
+  /** Always shown in nav regardless of permission grants (Dashboard, Settings). */
+  alwaysVisible?: boolean;
+};
+
+// Module catalog — keys match the `module` strings already used in sidebarItems.ts,
+// so this stays in sync with what's actually enforced in the nav/routes.
+export const permissionModules: PermissionModule[] = [
+  { key: "dashboard", label: "Dashboard", group: "Overview", actions: ["VIEW"], alwaysVisible: true },
+  { key: "student", label: "Students", group: "People", actions: ["VIEW", "CREATE", "UPDATE", "DELETE"] },
+  { key: "account", label: "Fee Collection", group: "Accounts", actions: ["VIEW", "CREATE", "UPDATE", "DELETE"] },
+  { key: "role", label: "Permissions", group: "Master Setup", actions: ["VIEW", "UPDATE"] },
+  { key: "user", label: "User Management", group: "System", actions: ["VIEW", "CREATE", "UPDATE", "DELETE"] },
+  { key: "settings", label: "Settings", group: "System", actions: ["VIEW"], alwaysVisible: true },
+];
+
+/** module key -> granted action list, for one role */
+export type PermissionSet = Record<string, string[]>;
+
+const allPermissions = (): PermissionSet =>
+  Object.fromEntries(permissionModules.map((m) => [m.key, [...m.actions]]));
+
+const defaultRolePermissions: Record<RoleName, PermissionSet> = {
+  SUPER_ADMIN: allPermissions(),
   ADMIN: {
-    ...DUMMY_USER,
-    fullName: "Sushmita Karki",
-    email: "admin@ssms.edu.np",
-    username: "Admin",
-    role: {
-      ...DUMMY_USER.role,
-      name: "ADMIN",
-      description: "Administrative access",
-      isSystemRole: false,
-    },
-    permissions: [
-      { feature: "student", action: "VIEW" },
-      { feature: "student", action: "CREATE" },
-      { feature: "student", action: "UPDATE" },
-      { feature: "account", action: "VIEW" },
-      { feature: "account", action: "CREATE" },
-      { feature: "role", action: "VIEW" },
-    ],
+    dashboard: ["VIEW"],
+    student: ["VIEW", "CREATE", "UPDATE"],
+    account: ["VIEW", "CREATE"],
+    role: ["VIEW"],
+    user: [],
+    settings: ["VIEW"],
   },
   ACCOUNTANT: {
-    ...DUMMY_USER,
-    fullName: "Binod Rai",
-    email: "accountant@ssms.edu.np",
-    username: "Accountant",
-    role: {
-      ...DUMMY_USER.role,
-      name: "ACCOUNTANT",
-      description: "Finance access",
-      isSystemRole: false,
-    },
-    permissions: [
-      { feature: "account", action: "VIEW" },
-      { feature: "account", action: "CREATE" },
-      { feature: "account", action: "UPDATE" },
-      { feature: "student", action: "VIEW" },
-    ],
+    dashboard: ["VIEW"],
+    student: ["VIEW"],
+    account: ["VIEW", "CREATE", "UPDATE"],
+    role: [],
+    user: [],
+    settings: ["VIEW"],
   },
   TEACHER: {
-    ...DUMMY_USER,
-    fullName: "Anita Sharma",
-    email: "teacher@ssms.edu.np",
-    username: "Teacher",
-    role: {
-      ...DUMMY_USER.role,
-      name: "TEACHER",
-      description: "Teacher access",
-      isSystemRole: false,
-    },
-    permissions: [{ feature: "student", action: "VIEW" }],
+    dashboard: ["VIEW"],
+    student: ["VIEW"],
+    account: [],
+    role: [],
+    user: [],
+    settings: ["VIEW"],
   },
 };
+
+export const roleMeta: Record<RoleName, { description: string; users: number; system: boolean }> = {
+  SUPER_ADMIN: { description: "Full system authority", users: 2, system: true },
+  ADMIN: { description: "Administrative access across academics and accounts", users: 5, system: false },
+  ACCOUNTANT: { description: "Finance focused access to fees and billing", users: 8, system: false },
+  TEACHER: { description: "Classroom and student record access", users: 24, system: false },
+};
+
+const ROLE_PROFILE: Record<RoleName, { fullName: string; email: string; username: string }> = {
+  SUPER_ADMIN: { fullName: "Ramesh Bhandari", email: "super@ssms.edu.np", username: "Super" },
+  ADMIN: { fullName: "Sushmita Karki", email: "admin@ssms.edu.np", username: "Admin" },
+  ACCOUNTANT: { fullName: "Binod Rai", email: "accountant@ssms.edu.np", username: "Accountant" },
+  TEACHER: { fullName: "Anita Sharma", email: "teacher@ssms.edu.np", username: "Teacher" },
+};
+
+function toPermissionList(set: PermissionSet): { feature: string; action: string }[] {
+  return Object.entries(set).flatMap(([feature, actions]) =>
+    actions.map((action) => ({ feature, action })),
+  );
+}
 
 interface PermissionContextValue {
   user: AuthUser;
   role: RoleName;
   setRole: (r: RoleName) => void;
   can: (feature: string, action: string) => boolean;
+  permissions: Record<RoleName, PermissionSet>;
+  setRolePermissions: (r: RoleName, p: PermissionSet) => void;
 }
 
 const PermissionContext = createContext<PermissionContextValue | null>(null);
 
 export function PermissionProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<RoleName>("SUPER_ADMIN");
-  const user = ROLE_USERS[role];
+  const [permissions, setPermissions] = useState<Record<RoleName, PermissionSet>>(
+    defaultRolePermissions,
+  );
+
+  const setRolePermissions = (r: RoleName, p: PermissionSet) => {
+    setPermissions((prev) => ({ ...prev, [r]: p }));
+  };
 
   const can = (feature: string, action: string) =>
-    user.permissions.some(
-      (p) =>
-        p.feature.toLowerCase() === feature.toLowerCase() &&
-        p.action.toUpperCase() === action.toUpperCase(),
-    );
+    (permissions[role][feature.toLowerCase()] ?? []).includes(action.toUpperCase());
+
+  const profile = ROLE_PROFILE[role];
+  const meta = roleMeta[role];
+  const user: AuthUser = {
+    id: `preview-${role.toLowerCase()}`,
+    email: profile.email,
+    username: profile.username,
+    fullName: profile.fullName,
+    phone: null,
+    status: "ACTIVE",
+    role: { id: role, name: role, description: meta.description, isSystemRole: meta.system },
+    permissions: toPermissionList(permissions[role]),
+  };
 
   return (
-    <PermissionContext.Provider value={{ user, role, setRole, can }}>
+    <PermissionContext.Provider
+      value={{ user, role, setRole, can, permissions, setRolePermissions }}
+    >
       {children}
     </PermissionContext.Provider>
   );

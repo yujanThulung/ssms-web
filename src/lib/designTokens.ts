@@ -27,7 +27,7 @@ export const colors = {
 export const DRAWER ={
     width: 480,
     widthLg: 720,
-    widthXl: 720,
+    widthXl: 1080,
 }
 
 export const MODAL ={

@@ -34,3 +34,23 @@ export const masterSetup: SidebarItem[] = [
 export const system: SidebarItem[] = [
   { title: 'Settings', url: '/settings', icon: Settings, module: 'settings' },
 ]
+
+
+// Single source of truth for nav groups — used by both the sidebar and the
+// header breadcrumb, so the two never drift apart.
+export const sidebarGroups: { label: string; items: SidebarItem[] }[] = [
+  { label: 'Overview', items: overview },
+  { label: 'People', items: people },
+  { label: 'Accounts', items: accounts },
+  { label: 'Master Setup', items: masterSetup },
+  { label: 'System', items: system },
+]
+
+/** Looks up { group, title } for a given pathname, for breadcrumbs. */
+export function findNavEntry(pathname: string): { group: string; title: string } | null {
+  for (const g of sidebarGroups) {
+    const item = g.items.find((i) => i.url === pathname)
+    if (item) return { group: g.label, title: item.title }
+  }
+  return null
+}

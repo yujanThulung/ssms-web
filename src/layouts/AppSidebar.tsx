@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Layout, Menu } from 'antd'
 import type { MenuProps } from 'antd'
@@ -61,8 +60,7 @@ function getItems(
   ]
 }
 
-export default function AppSidebar() {
-  const [collapsed, setCollapsed] = useState(false)
+export default function AppSidebar({ collapsed }: { collapsed: boolean }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const { can, role } = usePermission()
@@ -84,9 +82,8 @@ export default function AppSidebar() {
   return (
     <Sider
       theme="light"
-      collapsible
       collapsed={collapsed}
-      onCollapse={setCollapsed}
+      collapsedWidth={80}
       width={240}
       style={{
         height: '100vh',
@@ -150,11 +147,12 @@ export default function AppSidebar() {
       {!collapsed && (
         <div style={{
           position: 'absolute',
-          bottom: 48,
+          bottom: 0,
           left: 0,
           right: 0,
           padding: '8px 12px',
           borderTop: '1px solid #f3f4f6',
+          backgroundColor: '#ffffff',
         }}>
           <div style={{ borderRadius: 8, backgroundColor: '#f0fdf4', padding: '8px 12px' }}>
             <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>

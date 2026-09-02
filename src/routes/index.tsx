@@ -6,15 +6,16 @@ import StudentsPage from '../pages/students/StudentsPage'
 import AccountsPage from '../pages/accounts/AccountsPage'
 import PermissionsPage from '../pages/permissions/PermissionsPage'
 import SettingsPage from '../pages/settings/SettingsPage'
-
-// TODO: replace with useAuth() when login is ready
-const isAuthenticated = true
+import { useAuth } from '../context/ AuthContext'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth()
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
 }
 
 export default function AppRouter() {
+  const { isAuthenticated } = useAuth()
+
   return (
     <BrowserRouter>
       <Routes>
