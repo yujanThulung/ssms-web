@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
-import type { AuthUser } from "./ AuthContext";
+import type { AuthUser } from "./AuthContext";
 
 export type RoleName = "SUPER_ADMIN" | "ADMIN" | "ACCOUNTANT" | "TEACHER";
 

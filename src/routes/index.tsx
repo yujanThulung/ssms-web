@@ -6,7 +6,7 @@ import StudentsPage from '../pages/students/StudentsPage'
 import AccountsPage from '../pages/accounts/AccountsPage'
 import PermissionsPage from '../pages/permissions/PermissionsPage'
 import SettingsPage from '../pages/settings/SettingsPage'
-import { useAuth } from '../context/ AuthContext'
+import { useAuth } from '../context/AuthContext'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth()

@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { findNavEntry } from './sidebarItems'
 import { usePermission, ROLES } from '../context/PermissionContext'
-import { useAuth } from '../context/ AuthContext'
+import { useAuth } from '../context/AuthContext'
 import { colors } from '../lib/designTokens'
 
 const { Header } = Layout

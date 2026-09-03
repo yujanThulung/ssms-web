@@ -31,49 +31,53 @@ export interface AuthUser {
 
 interface AuthContextValue {
   user: AuthUser | null
-  token: string | null
   isAuthenticated: boolean
-  login: (user: AuthUser, token: string) => void
+  login: (user: AuthUser, accessToken: string, refreshToken: string) => void
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-const TOKEN_KEY = '_ssms_token'
-const USER_KEY = '_ssms_user'
+const STORAGE_KEYS = {
+  ACCESS_TOKEN: '_ssms_access_token',
+  REFRESH_TOKEN: '_ssms_refresh_token',
+  USER: '_ssms_user',
+} as const
+
+const { ACCESS_TOKEN, REFRESH_TOKEN, USER } = STORAGE_KEYS
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
     try {
-      const raw = localStorage.getItem(USER_KEY)
+      const raw = localStorage.getItem(USER)
       return raw ? JSON.parse(raw) : null
     } catch {
       return null
     }
   })
 
-  const [token, setToken] = useState<string | null>(() =>
-    localStorage.getItem(TOKEN_KEY)
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => !!localStorage.getItem(ACCESS_TOKEN)
   )
 
-  const login = useCallback((user: AuthUser, token: string) => {
-    localStorage.setItem(TOKEN_KEY, token)
-    localStorage.setItem(USER_KEY, JSON.stringify(user))
+  const login = useCallback((user: AuthUser, accessToken: string, refreshToken: string) => {
+    localStorage.setItem(ACCESS_TOKEN, accessToken)
+    localStorage.setItem(REFRESH_TOKEN, refreshToken)
+    localStorage.setItem(USER, JSON.stringify(user))
     setUser(user)
-    setToken(token)
+    setIsAuthenticated(true)
   }, [])
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
+    localStorage.removeItem(ACCESS_TOKEN)
+    localStorage.removeItem(REFRESH_TOKEN)
+    localStorage.removeItem(USER)
     setUser(null)
-    setToken(null)
+    setIsAuthenticated(false)
   }, [])
 
   return (
-    <AuthContext.Provider
-      value={{ user, token, isAuthenticated: !!token, login, logout }}
-    >
+    <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
