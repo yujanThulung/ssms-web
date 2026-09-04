@@ -1,10 +1,10 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Layout, Menu } from 'antd'
 import type { MenuProps } from 'antd'
-import { Landmark } from 'lucide-react'
 import { overview, people, accounts, masterSetup, system } from './sidebarItems'
 import { usePermission } from '../context/PermissionContext'
 import type { SidebarItem } from './sidebarItems'
+import logo from '../assets/logo.png'
 
 const { Sider } = Layout
 
@@ -105,8 +105,8 @@ export default function AppSidebar({ collapsed }: { collapsed: boolean }) {
         borderBottom: '1px solid #f3f4f6',
       }}>
         <div style={{
-          width: 32,
-          height: 32,
+          width: 50,
+          height: 50,
           borderRadius: 8,
           backgroundColor: '#15803d',
           display: 'grid',
@@ -114,12 +114,13 @@ export default function AppSidebar({ collapsed }: { collapsed: boolean }) {
           flexShrink: 0,
           boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
         }}>
-          <Landmark size={16} color="#ffffff" />
+          {/* <Landmark size={16} color="#ffffff" /> */}
+          <img src={logo} alt="Logo" style={{ width: 50, height: 50 }} />
         </div>
         {!collapsed && (
           <div style={{ minWidth: 0 }}>
             <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>
-              SSMS
+              Salyansthan Secondary School
             </p>
             <p style={{ margin: 0, fontSize: 11, color: '#9ca3af' }}>
               School Management
