@@ -1,51 +1,24 @@
+// src/pages/login/LoginPage.tsx
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
-import { usePost } from '../../lib/api'
-import type { AuthUser } from '../../context/AuthContext'
-import { cn } from '../../lib/utils'
+import { useLogin } from '../../features/auth/hooks/useLogin'
+import { cn } from '../../utils'
 import school from '../../assets/school.png'
 import logo from '../../assets/logo.png'
 
-interface LoginResponse {
-  user: AuthUser
-  access_token: string
-  refresh_token: string
-}
-
 export default function LoginPage() {
-  const { login } = useAuth()
-  const navigate = useNavigate()
   const [emailOrUsername, setEmailOrUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
 
-  const { mutate, isPending } = usePost<
-    { emailOrUsername: string; password: string },
-    LoginResponse
-  >('/auth/login')
+  const { mutate: loginUser, isPending, error } = useLogin()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError(null)
-    mutate(
-      { emailOrUsername, password },
-      {
-        onSuccess: (data) => {
-          login(data.user, data.access_token, data.refresh_token)
-          navigate('/')
-        },
-        onError: (err) => {
-          setError(err.message ?? 'Invalid credentials. Please try again.')
-        },
-      }
-    )
+    loginUser({ emailOrUsername, password })
   }
 
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
-
-      {/* ── Left — image panel ───────────────────────────── */}
+      {/*  Left — image panel  */}
       <div className="relative hidden lg:flex flex-col overflow-hidden">
         {/* background image */}
         <img
@@ -54,7 +27,7 @@ export default function LoginPage() {
           className="absolute inset-0 h-full w-full object-cover"
         />
 
-        {/* dark gradient overlay — top and bottom, keeps center clear */}
+        {/* dark gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/10 to-black/70" />
 
         {/* top — logo */}
@@ -80,7 +53,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* ── Right — form panel ───────────────────────────── */}
+      {/*  Right — form panel  */}
       <div className="flex flex-col min-h-svh bg-white">
         {/* mobile logo */}
         <div className="flex items-center gap-2 p-6 lg:hidden">
@@ -91,7 +64,6 @@ export default function LoginPage() {
         {/* centered form */}
         <div className="flex flex-1 items-center justify-center px-8 py-12">
           <div className="w-full max-w-sm">
-
             {/* heading */}
             <div className="mb-8">
               <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">
@@ -146,9 +118,10 @@ export default function LoginPage() {
                 />
               </div>
 
+              {/* Error display */}
               {error && (
                 <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
-                  <p className="text-sm text-red-600">{error}</p>
+                  <p className="text-sm text-red-600">{error.message}</p>
                 </div>
               )}
 
@@ -174,7 +147,6 @@ export default function LoginPage() {
           © {new Date().getFullYear()} SSMS. All rights reserved.
         </p>
       </div>
-
     </div>
   )
 }

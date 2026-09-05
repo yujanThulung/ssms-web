@@ -16,7 +16,6 @@ import {
   LogOut,
 } from 'lucide-react'
 import { findNavEntry } from './sidebarItems'
-import { usePermission, ROLES } from '../context/PermissionContext'
 import { useAuth } from '../context/AuthContext'
 import { colors } from '../lib/designTokens'
 
@@ -125,16 +124,17 @@ function NotificationBell() {
 }
 
 function ProfileMenu() {
-  const { user, role, setRole } = usePermission()
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
 
-  const initials = user.fullName
+  const displayName = user?.fullName || user?.username || 'User'
+  const initials = displayName
     .split(' ')
+    .filter(Boolean)
     .map((p) => p[0])
     .join('')
     .slice(0, 2)
-    .toUpperCase()
+    .toUpperCase() || 'U'
 
   const handleLogout = () => {
     Modal.confirm({
@@ -160,31 +160,20 @@ function ProfileMenu() {
             {initials}
           </Avatar>
           <div style={{ minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: colors.text }}>{user.fullName}</p>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: colors.text }}>{displayName}</p>
             <p style={{ margin: 0, fontSize: 12, color: colors.muted, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {user.email}
+              {user?.email}
             </p>
+            {user?.role?.name && (
+              <span style={{ fontSize: 11, color: colors.primary, fontWeight: 600 }}>
+                {user.role.name.replace('_', ' ')}
+              </span>
+            )}
           </div>
         </div>
       ),
       disabled: true,
     },
-    { type: 'divider' },
-    {
-      key: 'role-label',
-      label: <span style={{ fontSize: 11, color: colors.disabled, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Preview as role</span>,
-      disabled: true,
-    },
-    ...ROLES.map((r) => ({
-      key: `role-${r}`,
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>{r.replace('_', ' ')}</span>
-          {role === r && <Check size={14} color={colors.primary} />}
-        </div>
-      ),
-      onClick: () => setRole(r),
-    })),
     { type: 'divider' },
     {
       key: 'profile',

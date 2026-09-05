@@ -11,28 +11,29 @@ export type SidebarItem = {
   title: string
   url: string
   icon: LucideIcon
-  module: string
+  feature: string
+  alwaysVisible?: boolean
 }
 
 // One item per section — expand later as features are built
 export const overview: SidebarItem[] = [
-  { title: 'Dashboard', url: '/', icon: LayoutDashboard, module: 'dashboard' },
+  { title: 'Dashboard', url: '/', icon: LayoutDashboard, feature: 'dashboard', alwaysVisible: true },
 ]
 
 export const people: SidebarItem[] = [
-  { title: 'Students', url: '/students', icon: GraduationCap, module: 'student' },
+  { title: 'Students', url: '/students', icon: GraduationCap, feature: 'student' },
 ]
 
 export const accounts: SidebarItem[] = [
-  { title: 'Fee Collection', url: '/accounts', icon: Wallet, module: 'account' },
+  { title: 'Fee Collection', url: '/accounts', icon: Wallet, feature: 'account' },
 ]
 
 export const masterSetup: SidebarItem[] = [
-  { title: 'Permissions', url: '/permissions', icon: ShieldCheck, module: 'role' },
+  { title: 'Permissions', url: '/permissions', icon: ShieldCheck, feature: 'role' },
 ]
 
 export const system: SidebarItem[] = [
-  { title: 'Settings', url: '/settings', icon: Settings, module: 'settings' },
+  { title: 'Settings', url: '/settings', icon: Settings, feature: 'settings', alwaysVisible: true },
 ]
 
 
