@@ -4,7 +4,10 @@ import {
   useState,
   useCallback,
   type ReactNode,
+  useEffect,
 } from 'react'
+import client from '../lib/api/client'
+import { ENDPOINTS } from '../lib/api/endpoints'
 
 export interface Permission {
   feature: string
@@ -75,6 +78,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
     setIsAuthenticated(false)
   }, [])
+
+  //call /users/me on initial app load / page refresh (runs ONCE)
+  useEffect(() => {
+    const token = localStorage.getItem(ACCESS_TOKEN)
+    if (!token) return
+
+    client
+      .get(ENDPOINTS.USERS.ME)
+      .then((res) => {
+        // Safe 2-level unwrap
+        const freshUser: AuthUser = res.data?.data ?? res.data
+        if (freshUser && freshUser.id) {
+          localStorage.setItem(USER, JSON.stringify(freshUser))
+          setUser(freshUser)
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to sync user permissions on refresh:', err)
+        if (err.response?.status === 401 || err.message?.includes('expired')) {
+          logout()
+        }
+      })
+  }, [])
+
 
   return (
     <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>

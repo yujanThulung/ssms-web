@@ -3,21 +3,24 @@ import { Table, Drawer, Checkbox, Input, Space, Tag, Dropdown, Modal, Button } f
 import type { ColumnsType } from 'antd/es/table'
 import { MoreOutlined, EyeOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import { toast } from 'sonner'
+import { usePermission } from '../../context/PermissionContext'
 import {
-  usePermission,
   ROLES,
   roleMeta,
   permissionModules,
+  defaultRolePermissions,
   type RoleName,
   type PermissionSet,
-} from '../../context/PermissionContext'
+} from './permissionCatalog'
 import { DRAWER, colors } from '../../lib/designTokens'
+import { FEATURES, ACTIONS } from '../../utils/permissions'
 
 type RoleRow = { role: RoleName }
 
 export default function PermissionsPage() {
-  const { permissions, setRolePermissions, can } = usePermission()
-  const canEdit = can('role', 'UPDATE')
+  const { can } = usePermission()
+  const canEdit = can(FEATURES.ROLE, ACTIONS.UPDATE)
+  const [permissions, setPermissions] = useState<Record<RoleName, PermissionSet>>(defaultRolePermissions)
   const [viewRole, setViewRole] = useState<RoleName | null>(null)
 
   const rows: RoleRow[] = ROLES.map((role) => ({ role }))
@@ -107,7 +110,7 @@ export default function PermissionsPage() {
           canEdit={canEdit}
           onClose={() => setViewRole(null)}
           onSave={(p) => {
-            setRolePermissions(viewRole, p)
+            setPermissions((prev) => ({ ...prev, [viewRole]: p }))
             toast.success(`${viewRole.replace('_', ' ')} permissions updated`)
             setViewRole(null)
           }}

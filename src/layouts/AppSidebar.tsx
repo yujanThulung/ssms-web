@@ -3,6 +3,7 @@ import { Layout, Menu } from 'antd'
 import type { MenuProps } from 'antd'
 import { overview, people, accounts, masterSetup, system } from './sidebarItems'
 import { usePermission } from '../context/PermissionContext'
+import { ACTIONS } from '../utils/permissions'
 import type { SidebarItem } from './sidebarItems'
 import logo from '../assets/logo.png'
 
@@ -10,22 +11,20 @@ const { Sider } = Layout
 
 type MenuItem = Required<MenuProps>['items'][number]
 
-function getItems(
+function getGroupItems(
   label: string,
   items: SidebarItem[],
   pathname: string,
   can: (feature: string, action: string) => boolean,
-  role: string,
 ): MenuItem[] {
-  const visible = items.filter((i) => {
-    if (i.module === 'dashboard' || i.module === 'settings') return true
-    if (i.module === 'role' && role !== 'SUPER_ADMIN' && i.url === '/permissions') return false
-    return can(i.module, 'VIEW')
+  const visibleItems = items.filter((item) => {
+    if (item.alwaysVisible) return true
+    if (!item.feature) return false
+    return can(item.feature, ACTIONS.VIEW)
   })
 
-  console.log(`[${label}] visible items:`, visible)
 
-  if (visible.length === 0) return []
+  if (visibleItems.length === 0) return []
 
   return [
     {
@@ -41,7 +40,7 @@ function getItems(
           {label}
         </span>
       ),
-      children: visible.map((item) => {
+      children: visibleItems.map((item) => {
         const active = pathname === item.url
         return {
           key: item.url,
@@ -63,21 +62,27 @@ function getItems(
 export default function AppSidebar({ collapsed }: { collapsed: boolean }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const { can, role } = usePermission()
+  const { can } = usePermission()
 
-  const items: MenuItem[] = [
-    ...getItems('Overview', overview, pathname, can, role),
-    { type: 'divider' },
-    ...getItems('People', people, pathname, can, role),
-    { type: 'divider' },
-    ...getItems('Accounts', accounts, pathname, can, role),
-    { type: 'divider' },
-    ...getItems('Master Setup', masterSetup, pathname, can, role),
-    { type: 'divider' },
-    ...getItems('System', system, pathname, can, role),
+  const sectionConfigs = [
+    { label: 'Overview', items: overview },
+    { label: 'People', items: people },
+    { label: 'Accounts', items: accounts },
+    { label: 'Master Setup', items: masterSetup },
+    { label: 'System', items: system },
   ]
 
-  console.log('final menu items:', items)
+  const items: MenuItem[] = []
+
+  sectionConfigs.forEach((section, index) => {
+    const menuItems = getGroupItems(section.label, section.items, pathname, can)
+    if (menuItems.length > 0) {
+      if (items.length > 0) {
+        items.push({ type: 'divider', key: `divider-${index}` })
+      }
+      items.push(...menuItems)
+    }
+  })
 
   return (
     <Sider
