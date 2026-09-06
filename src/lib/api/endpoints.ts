@@ -7,6 +7,7 @@ export const ENDPOINTS = {
   },
   USERS: {
     ME: '/users/me',
+    CHANGE_PASSWORD: '/users/me/password',
   },
   STUDENTS: {
     BASE: '/students',

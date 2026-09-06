@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { findNavEntry } from './sidebarItems'
 import { useAuth } from '../context/AuthContext'
+import { useLogOut } from '../features/auth/hooks/useLogout'
 import { colors } from '../lib/designTokens'
 
 const { Header } = Layout
@@ -124,8 +125,9 @@ function NotificationBell() {
 }
 
 function ProfileMenu() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const navigate = useNavigate()
+  const { mutate: doLogout, isPending: isLoggingOut } = useLogOut()
 
   const displayName = user?.fullName || user?.username || 'User'
   const initials = displayName
@@ -140,14 +142,10 @@ function ProfileMenu() {
     Modal.confirm({
       title: 'Are you sure you want to logout?',
       content: 'You will be signed out of the school management system on this device.',
-      okText: 'Logout',
-      okButtonProps: { danger: true },
+      okText: isLoggingOut ? 'Logging out…' : 'Logout',
+      okButtonProps: { danger: true, loading: isLoggingOut },
       cancelText: 'Cancel',
-      onOk: () => {
-        logout()
-        toast.success('Logged out successfully')
-        navigate('/login')
-      },
+      onOk: () => doLogout(),
     })
   }
 
@@ -179,7 +177,7 @@ function ProfileMenu() {
       key: 'profile',
       label: 'Profile',
       icon: <User size={14} />,
-      onClick: () => navigate('/settings'),
+      onClick: () => navigate('/settings', { state: { tab: 'profile' } }),
     },
     {
       key: 'settings',
@@ -191,7 +189,7 @@ function ProfileMenu() {
       key: 'password',
       label: 'Change password',
       icon: <KeyRound size={14} />,
-      onClick: () => toast.info('Password change form opened in Settings → Security'),
+      onClick: () => navigate('/settings', { state: { tab: 'profile' } }),
     },
     { type: 'divider' },
     {
@@ -231,9 +229,20 @@ export default function AppHeader({
   const { pathname } = useLocation()
   const entry = findNavEntry(pathname)
 
-  const breadcrumbItems = entry
+  const rawItems = entry
     ? [{ title: entry.group }, { title: entry.title }]
     : [{ title: 'Overview' }, { title: 'Dashboard' }]
+
+  const breadcrumbItems = rawItems.map((item, index) => {
+    const isLast = index === rawItems.length - 1
+    return {
+      title: isLast ? (
+        <span style={{ color: colors.primary, fontWeight: 600 }}>{item.title}</span>
+      ) : (
+        item.title
+      ),
+    }
+  })
 
   return (
     <Header
