@@ -6,6 +6,7 @@ export const ENDPOINTS = {
     LOGOUT: '/auth/logout',
   },
   USERS: {
+    BASE: '/users',
     ME: '/users/me',
     CHANGE_PASSWORD: '/users/me/password',
   },

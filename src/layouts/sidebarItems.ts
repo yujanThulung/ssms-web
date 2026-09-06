@@ -4,8 +4,10 @@ import {
   Wallet,
   ShieldCheck,
   Settings,
+  Users
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { FEATURES } from '../utils'
 
 export type SidebarItem = {
   title: string
@@ -22,6 +24,7 @@ export const overview: SidebarItem[] = [
 
 export const people: SidebarItem[] = [
   { title: 'Students', url: '/students', icon: GraduationCap, feature: 'student' },
+  { title: 'Users', url: '/users', icon: Users, feature: FEATURES.USER },
 ]
 
 export const accounts: SidebarItem[] = [
