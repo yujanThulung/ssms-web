@@ -21,4 +21,8 @@ export const ENDPOINTS = {
     LIST: '/permissions',
     DETAIL: (id: string | number) => `/permissions/${id}`,
   },
+  ROLES: {
+    BASE: '/roles',
+    PERMISSIONS: (roleId: string) => `/roles/${roleId}/permissions`,
+  },
 } as const

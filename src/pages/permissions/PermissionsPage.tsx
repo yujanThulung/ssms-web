@@ -1,49 +1,38 @@
-import { useMemo, useState } from 'react'
-import { Table, Drawer, Checkbox, Input, Space, Tag, Dropdown, Modal, Button } from 'antd'
+import { useMemo, useState, useEffect } from 'react'
+import { Table, Drawer, Checkbox, Input, Space, Tag, Dropdown, Modal, Button, Spin } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { MoreOutlined, EyeOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import { toast } from 'sonner'
 import { usePermission } from '../../context/PermissionContext'
-import {
-  ROLES,
-  roleMeta,
-  permissionModules,
-  defaultRolePermissions,
-  type RoleName,
-  type PermissionSet,
-} from './permissionCatalog'
 import { DRAWER, colors } from '../../lib/designTokens'
 import { FEATURES, ACTIONS } from '../../utils/permissions'
-
-type RoleRow = { role: RoleName }
+import { useRoles } from '../../features/roles/hooks/useRoles'
+import { useRolePermissions } from '../../features/roles/hooks/useRolePermissions'
+import { useUpdateRolePermissions } from '../../features/roles/hooks/useUpdateRolePermissions'
+import type { Role, RolePermission } from '../../features/roles/types'
 
 export default function PermissionsPage() {
   const { can } = usePermission()
   const canEdit = can(FEATURES.ROLE, ACTIONS.UPDATE)
-  const [permissions, setPermissions] = useState<Record<RoleName, PermissionSet>>(defaultRolePermissions)
-  const [viewRole, setViewRole] = useState<RoleName | null>(null)
+  const { data: roles = [], isLoading } = useRoles()
+  const [viewRole, setViewRole] = useState<Role | null>(null)
 
-  const rows: RoleRow[] = ROLES.map((role) => ({ role }))
-
-  const columns: ColumnsType<RoleRow> = [
+  const columns: ColumnsType<Role> = [
     {
       title: 'Role',
       key: 'role',
-      render: (_, r) => {
-        const meta = roleMeta[r.role]
-        return (
-          <Space>
-            <div>
-              <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: colors.text }}>
-                {r.role.replace('_', ' ')}
-              </p>
-              <p style={{ margin: 0, fontSize: 12, color: colors.muted }}>{meta.description}</p>
-            </div>
-            <Tag>{meta.users} users</Tag>
-            {meta.system ? <Tag color="blue">System</Tag> : null}
-          </Space>
-        )
-      },
+      render: (_, r) => (
+        <Space>
+          <div>
+            <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: colors.text }}>
+              {r.name.replace('_', ' ')}
+            </p>
+            <p style={{ margin: 0, fontSize: 12, color: colors.muted }}>{r.description}</p>
+          </div>
+          <Tag>{r.userCount ?? 0} users</Tag>
+          {r.isSystemRole ? <Tag color="blue">System</Tag> : null}
+        </Space>
+      ),
     },
     {
       title: 'Actions',
@@ -56,24 +45,24 @@ export default function PermissionsPage() {
             items: [
               {
                 key: 'view',
-                label: 'View',
+                label: 'View / Edit Permissions',
                 icon: <EyeOutlined />,
-                onClick: () => setViewRole(r.role),
+                onClick: () => setViewRole(r),
               },
               {
                 key: 'delete',
                 label: 'Delete',
                 icon: <DeleteOutlined />,
                 danger: true,
-                disabled: roleMeta[r.role].system,
+                disabled: r.isSystemRole,
                 onClick: () => {
                   Modal.confirm({
-                    title: `Delete role "${r.role.replace('_', ' ')}"?`,
+                    title: `Delete role "${r.name.replace('_', ' ')}"?`,
                     content:
                       'Users assigned to this role will lose their current access. This cannot be undone.',
                     okText: 'Delete',
                     okButtonProps: { danger: true },
-                    onOk: () => toast.success(`${r.role.replace('_', ' ')} role deleted`),
+                    onOk: () => toast.success(`${r.name.replace('_', ' ')} role deleted`),
                   })
                 },
               },
@@ -96,24 +85,19 @@ export default function PermissionsPage() {
       </div>
 
       <Table
-        rowKey="role"
+        rowKey="id"
         columns={columns}
-        dataSource={rows}
+        dataSource={roles}
+        loading={isLoading}
         pagination={false}
-        onRow={(r) => ({ onClick: () => setViewRole(r.role), style: { cursor: 'pointer' } })}
+        onRow={(r) => ({ onClick: () => setViewRole(r), style: { cursor: 'pointer' } })}
       />
 
       {viewRole && (
         <RolePermissionsDrawer
           role={viewRole}
-          permissionSet={permissions[viewRole]}
           canEdit={canEdit}
           onClose={() => setViewRole(null)}
-          onSave={(p) => {
-            setPermissions((prev) => ({ ...prev, [viewRole]: p }))
-            toast.success(`${viewRole.replace('_', ' ')} permissions updated`)
-            setViewRole(null)
-          }}
         />
       )}
     </div>
@@ -122,48 +106,94 @@ export default function PermissionsPage() {
 
 function RolePermissionsDrawer({
   role,
-  permissionSet,
   canEdit,
   onClose,
-  onSave,
 }: {
-  role: RoleName
-  permissionSet: PermissionSet
+  role: Role
   canEdit: boolean
   onClose: () => void
-  onSave: (p: PermissionSet) => void
 }) {
-  const [draft, setDraft] = useState<PermissionSet>(() =>
-    Object.fromEntries(Object.entries(permissionSet).map(([k, v]) => [k, [...v]])),
-  )
+  const { data: permissions = [], isLoading } = useRolePermissions(role.id)
+  const { mutate: updatePermissions, isPending: isSaving } = useUpdateRolePermissions()
+  const [grantedIds, setGrantedIds] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
 
-  const filteredModules = useMemo(
-    () =>
-      permissionModules.filter(
-        (m) =>
-          m.label.toLowerCase().includes(query.toLowerCase()) ||
-          m.group.toLowerCase().includes(query.toLowerCase()),
-      ),
-    [query],
-  )
+  // Sync granted IDs when permissions data loads
+  useEffect(() => {
+    if (permissions) {
+      const initialGranted = new Set(
+        permissions.filter((p) => p.granted).map((p) => p.id)
+      )
+      setGrantedIds(initialGranted)
+    }
+  }, [permissions])
 
-  const toggleAction = (moduleKey: string, action: string, checked: boolean) => {
-    setDraft((prev) => {
-      const current = new Set(prev[moduleKey] ?? [])
-      if (checked) current.add(action)
-      else current.delete(action)
-      return { ...prev, [moduleKey]: Array.from(current) }
+  // Group permissions by feature name
+  const groupedPermissions = useMemo(() => {
+    const groups: Record<string, RolePermission[]> = {}
+    permissions.forEach((p) => {
+      const featureKey = p.feature.toLowerCase()
+      if (!groups[featureKey]) {
+        groups[featureKey] = []
+      }
+      groups[featureKey].push(p)
+    })
+    return groups
+  }, [permissions])
+
+  // Filter feature groups based on search query
+  const filteredFeatures = useMemo(() => {
+    const keys = Object.keys(groupedPermissions)
+    if (!query.trim()) return keys
+    const q = query.toLowerCase()
+    return keys.filter(
+      (feature) =>
+        feature.includes(q) ||
+        groupedPermissions[feature].some(
+          (p) =>
+            p.action.toLowerCase().includes(q) ||
+            p.description.toLowerCase().includes(q)
+        )
+    )
+  }, [groupedPermissions, query])
+
+  const togglePermission = (id: string, checked: boolean) => {
+    setGrantedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
     })
   }
 
-  const toggleAll = (moduleKey: string, actions: string[], checked: boolean) => {
-    setDraft((prev) => ({ ...prev, [moduleKey]: checked ? [...actions] : [] }))
+  const toggleGroup = (groupItems: RolePermission[], checked: boolean) => {
+    setGrantedIds((prev) => {
+      const next = new Set(prev)
+      groupItems.forEach((item) => {
+        if (checked) next.add(item.id)
+        else next.delete(item.id)
+      })
+      return next
+    })
+  }
+
+  const handleSave = () => {
+    updatePermissions(
+      {
+        roleId: role.id,
+        payload: { permissionIds: Array.from(grantedIds) },
+      },
+      {
+        onSuccess: () => {
+          onClose()
+        },
+      }
+    )
   }
 
   return (
     <Drawer
-      title={`${role.replace('_', ' ')} permissions`}
+      title={`${role.name.replace('_', ' ')} permissions`}
       open
       onClose={onClose}
       width={DRAWER.widthXl}
@@ -171,7 +201,8 @@ function RolePermissionsDrawer({
         canEdit ? (
           <Button
             type="primary"
-            onClick={() => onSave(draft)}
+            loading={isSaving}
+            onClick={handleSave}
             style={{ background: colors.primary, borderColor: colors.primary }}
           >
             Save changes
@@ -179,71 +210,114 @@ function RolePermissionsDrawer({
         ) : null
       }
     >
-      <p style={{ marginTop: -8, color: colors.muted, fontSize: 13 }}>{roleMeta[role].description}</p>
+      <p style={{ marginTop: -8, color: colors.muted, fontSize: 13 }}>{role.description}</p>
       <Input
         allowClear
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search modules…"
+        placeholder="Search modules or actions…"
         prefix={<SearchOutlined style={{ color: colors.muted }} />}
         style={{ marginBottom: 16 }}
       />
 
-      <Space direction="vertical" size={12} style={{ width: '100%' }}>
-        {filteredModules.map((m) => {
-          const checkedActions = new Set(draft[m.key] ?? [])
-          const allChecked = m.actions.every((a) => checkedActions.has(a))
-          return (
-            <div key={m.key} style={{ border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: colors.text }}>
-                    {m.label}
-                    {m.alwaysVisible && (
-                      <Tag style={{ marginLeft: 8 }} color="default">
-                        Always visible
-                      </Tag>
-                    )}
-                  </p>
-                  <p style={{ margin: 0, fontSize: 12, color: colors.muted }}>{m.group}</p>
-                </div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: colors.muted }}>
-                  <Checkbox
-                    checked={allChecked}
-                    disabled={!canEdit}
-                    onChange={(e) => toggleAll(m.key, m.actions, e.target.checked)}
-                  />
-                  Select all
-                </label>
-              </div>
+      {isLoading ? (
+        <div style={{ display: 'grid', placeItems: 'center', padding: '60px 0' }}>
+          <Spin size="large" />
+        </div>
+      ) : (
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          {filteredFeatures.map((feature) => {
+            const items = groupedPermissions[feature]
+            const allChecked = items.every((item) => grantedIds.has(item.id))
+
+            return (
               <div
-                style={{
-                  marginTop: 12,
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-                  gap: 8,
-                }}
+                key={feature}
+                style={{ border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16 }}
               >
-                {m.actions.map((action) => (
-                  <label key={action} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justify: 'space-between',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <div>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontWeight: 600,
+                        fontSize: 14,
+                        color: colors.text,
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {feature} Module
+                    </p>
+                  </div>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 12,
+                      color: colors.muted,
+                      cursor: 'pointer',
+                    }}
+                  >
                     <Checkbox
-                      checked={checkedActions.has(action)}
+                      checked={allChecked}
                       disabled={!canEdit}
-                      onChange={(e) => toggleAction(m.key, action, e.target.checked)}
+                      onChange={(e) => toggleGroup(items, e.target.checked)}
                     />
-                    {action}
+                    Select all
                   </label>
-                ))}
+                </div>
+                <div
+                  style={{
+                    marginTop: 12,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: 12,
+                  }}
+                >
+                  {items.map((item) => (
+                    <label
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 8,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Checkbox
+                        checked={grantedIds.has(item.id)}
+                        disabled={!canEdit}
+                        onChange={(e) => togglePermission(item.id, e.target.checked)}
+                        style={{ marginTop: 2 }}
+                      />
+                      <div>
+                        <span style={{ fontWeight: 600, color: colors.text }}>{item.action}</span>
+                        <p style={{ margin: 0, fontSize: 11, color: colors.muted }}>
+                          {item.description}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
-          )
-        })}
-        {filteredModules.length === 0 && (
-          <p style={{ padding: '40px 0', textAlign: 'center', color: colors.muted, fontSize: 13 }}>
-            No modules match your search.
-          </p>
-        )}
-      </Space>
+            )
+          })}
+          {filteredFeatures.length === 0 && (
+            <p style={{ padding: '40px 0', textAlign: 'center', color: colors.muted, fontSize: 13 }}>
+              No permissions match your search.
+            </p>
+          )}
+        </Space>
+      )}
     </Drawer>
   )
 }

@@ -143,8 +143,15 @@ function ProfileMenu() {
       title: 'Are you sure you want to logout?',
       content: 'You will be signed out of the school management system on this device.',
       okText: isLoggingOut ? 'Logging out…' : 'Logout',
-      okButtonProps: { danger: true, loading: isLoggingOut },
+      okButtonProps: {
+        danger: true,
+        loading: isLoggingOut,
+        style: { backgroundColor: colors.error, borderColor: colors.error, color: '#ffffff' },
+      },
       cancelText: 'Cancel',
+      cancelButtonProps: {
+        className: 'hover:!bg-gray-100 hover:!border-gray-300 hover:!text-gray-700',
+      },
       onOk: () => doLogout(),
     })
   }
