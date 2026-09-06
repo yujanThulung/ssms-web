@@ -11,6 +11,8 @@ import { useRolePermissions } from '../../features/roles/hooks/useRolePermission
 import { useUpdateRolePermissions } from '../../features/roles/hooks/useUpdateRolePermissions'
 import type { Role, RolePermission } from '../../features/roles/types'
 
+import { TableSkeleton, ListSkeleton } from '../../components/skeleton'
+
 export default function PermissionsPage() {
   const { can } = usePermission()
   const canEdit = can(FEATURES.ROLE, ACTIONS.UPDATE)
@@ -84,14 +86,17 @@ export default function PermissionsPage() {
         </p>
       </div>
 
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={roles}
-        loading={isLoading}
-        pagination={false}
-        onRow={(r) => ({ onClick: () => setViewRole(r), style: { cursor: 'pointer' } })}
-      />
+      {isLoading ? (
+        <TableSkeleton rows={4} columns={2} />
+      ) : (
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={roles}
+          pagination={false}
+          onRow={(r) => ({ onClick: () => setViewRole(r), style: { cursor: 'pointer' } })}
+        />
+      )}
 
       {viewRole && (
         <RolePermissionsDrawer
@@ -221,9 +226,7 @@ function RolePermissionsDrawer({
       />
 
       {isLoading ? (
-        <div style={{ display: 'grid', placeItems: 'center', padding: '60px 0' }}>
-          <Spin size="large" />
-        </div>
+        <ListSkeleton count={3} />
       ) : (
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           {filteredFeatures.map((feature) => {
@@ -238,7 +241,7 @@ function RolePermissionsDrawer({
                 <div
                   style={{
                     display: 'flex',
-                    justify: 'space-between',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
                     gap: 8,
                   }}

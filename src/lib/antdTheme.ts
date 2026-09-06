@@ -12,6 +12,15 @@ export const antdTheme: ThemeConfig = {
         Breadcrumb: {
             lastItemColor: colors.primary,
         },
+        Table: {
+            headerBg: '#e8f3f2ff',
+            headerColor: '#1e293b',
+            headerSplitColor: 'transparent',
+            borderColor: colors.border,
+            rowHoverBg: colors.primaryLight,
+            cellPaddingBlock: 12,
+            cellPaddingInline: 16,
+        },
         Tabs: {
             itemSelectedColor: colors.primary,
             inkBarColor: colors.primary,
