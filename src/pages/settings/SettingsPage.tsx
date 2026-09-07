@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Tabs, Select, Input, Switch, Divider, Button, Avatar, Form, Tag } from 'antd'
+import { Tabs, Select, Input, Divider, Button, Avatar, Form, Tag } from 'antd'
 import { KeyRound, Mail, User, Shield } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '../../context/AuthContext'
@@ -238,15 +238,7 @@ export default function SettingsPage() {
   const location = useLocation()
   const defaultTab = (location.state as { tab?: string } | null)?.tab ?? 'general'
 
-  const feeCategories = ['Tuition Fee', 'Transport Fee', 'Exam Fee', 'Hostel Fee', 'Lab Fee', 'Library Fee']
-  const paymentMethods = ['Cash', 'Bank transfer', 'eSewa', 'Khalti', 'Cheque']
-  const notificationEvents = [
-    'Upcoming due date',
-    'Overdue fees',
-    'Successful payment',
-    'Invoice generated',
-    'Refund approved',
-  ]
+
 
   const items = [
     // {
