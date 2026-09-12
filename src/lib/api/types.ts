@@ -1,8 +1,21 @@
-export interface PaginatedResponse<T>{
-    data: T[]
-    total: number
+export interface ApiMeta {
     page: number
-    pageSize: number
+    limit: number
+    total: number
+    totalPages: number
+}
+
+export interface ApiPaginatedResponse<T> {
+    success: boolean
+    message: string
+    data: T[]
+    meta: ApiMeta
+}
+
+export interface ApiResponse<T> {
+    success: boolean
+    message: string
+    data: T
 }
 
 export interface ListParams{

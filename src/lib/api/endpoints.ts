@@ -26,4 +26,13 @@ export const ENDPOINTS = {
     BASE: '/roles',
     PERMISSIONS: (roleId: string) => `/roles/${roleId}/permissions`,
   },
+  ACADEMIC_YEARS: {
+    SUMMARY: '/academic-years/summary',
+    LIST: '/academic-years',
+    BASE: '/academic-years',
+    DETAIL: (id: string | number) => `/academic-years/${id}`,
+    SET_CURRENT: (id: string | number) => `/academic-years/${id}/set-current`,
+    CLONE: (id: string | number) => `/academic-years/${id}/clone`,
+    ARCHIVE: (id: string | number) => `/academic-years/${id}/archive`,
+  }
 } as const

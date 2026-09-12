@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
-import { Table, Drawer, Checkbox, Input, Space, Tag, Dropdown, Modal, Button } from 'antd'
+import { Table, Drawer, Checkbox, Input, Space, Tag, Dropdown, Button } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { MoreOutlined, EyeOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ import { useUpdateRolePermissions } from '../../features/roles/hooks/useUpdateRo
 import type { Role, RolePermission } from '../../features/roles/types'
 
 import { TableSkeleton, ListSkeleton } from '../../components/skeleton'
+import { appConfirm } from '../../components/common/AppConfirm'
 
 export default function PermissionsPage() {
   const { can } = usePermission()
@@ -58,12 +59,13 @@ export default function PermissionsPage() {
                 danger: true,
                 disabled: r.isSystemRole,
                 onClick: () => {
-                  Modal.confirm({
+                  appConfirm({
                     title: `Delete role "${r.name.replace('_', ' ')}"?`,
                     content:
                       'Users assigned to this role will lose their current access. This cannot be undone.',
                     okText: 'Delete',
-                    okButtonProps: { danger: true },
+                    okColor: 'danger',
+                    cancelText: 'Cancel',
                     onOk: () => toast.success(`${r.name.replace('_', ' ')} role deleted`),
                   })
                 },

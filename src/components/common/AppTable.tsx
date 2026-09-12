@@ -10,6 +10,7 @@ export function AppTable<RecordType extends object = Record<string, unknown>>({
   onRow,
   style,
   className,
+  scroll,
   ...props
 }: AppTableProps<RecordType>) {
   return (
@@ -25,6 +26,7 @@ export function AppTable<RecordType extends object = Record<string, unknown>>({
       className={className}
     >
       <Table<RecordType>
+        scroll={{ x: 'max-content', ...scroll }}
         {...props}
         onRow={(record, rowIndex) => {
           const userRowProps = onRow ? onRow(record, rowIndex) : {}

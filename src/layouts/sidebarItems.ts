@@ -4,7 +4,8 @@ import {
   Wallet,
   ShieldCheck,
   Settings,
-  Users
+  Users,
+  CalendarRange
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { FEATURES } from '../utils'
@@ -23,15 +24,16 @@ export const overview: SidebarItem[] = [
 ]
 
 export const people: SidebarItem[] = [
-  { title: 'Students', url: '/students', icon: GraduationCap, feature: 'student' },
+  { title: 'Students', url: '/students', icon: GraduationCap, feature: FEATURES.STUDENT },
   { title: 'Users', url: '/users', icon: Users, feature: FEATURES.USER },
 ]
 
 export const accounts: SidebarItem[] = [
-  { title: 'Fee Collection', url: '/accounts', icon: Wallet, feature: 'account' },
+  { title: 'Fee Collection', url: '/accounts', icon: Wallet, feature: FEATURES.ACCOUNT },
 ]
 
 export const masterSetup: SidebarItem[] = [
+  { title: 'Academic Session', url: '/academic-session', icon: CalendarRange, feature: FEATURES.ACADEMIC_YEAR },
   { title: 'Permissions', url: '/permissions', icon: ShieldCheck, feature: 'role' },
 ]
 

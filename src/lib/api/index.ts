@@ -1,6 +1,6 @@
 export { default as apiClient } from './client'
 export { queryClient } from './queryClient'
-export type { PaginatedResponse, ListParams, ApiError, TokenPair } from './types'
+export type { ApiPaginatedResponse as PaginatedResponse, ListParams, ApiError, TokenPair } from './types'
 export { useGet } from './hooks/useGet'
 export { useList } from './hooks/useList'
 export { usePost } from './hooks/usePost'

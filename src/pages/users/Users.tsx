@@ -208,7 +208,7 @@ export default function UsersPage() {
                     pagination={{
                         current: page,
                         pageSize: limit,
-                        total: usersData?.total || 0,
+                        total: usersData?.meta?.total || 0,
                         showSizeChanger: true,
                         onChange: (p, l) => {
                             setPage(p)

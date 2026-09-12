@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Layout, Breadcrumb, Input, Badge, Popover, Dropdown, Avatar, Modal } from 'antd'
+import { Layout, Breadcrumb, Input, Badge, Popover, Dropdown, Avatar } from 'antd'
 import type { MenuProps } from 'antd'
 import { toast } from 'sonner'
 import {
@@ -19,6 +19,7 @@ import { findNavEntry } from './sidebarItems'
 import { useAuth } from '../context/AuthContext'
 import { useLogOut } from '../features/auth/hooks/useLogout'
 import { colors } from '../lib/designTokens'
+import { appConfirm } from '../components/common/AppConfirm'
 
 const { Header } = Layout
 
@@ -139,18 +140,14 @@ function ProfileMenu() {
     .toUpperCase() || 'U'
 
   const handleLogout = () => {
-    Modal.confirm({
+    appConfirm({
       title: 'Are you sure you want to logout?',
       content: 'You will be signed out of the school management system on this device.',
       okText: isLoggingOut ? 'Logging out…' : 'Logout',
-      okButtonProps: {
-        danger: true,
-        loading: isLoggingOut,
-        style: { backgroundColor: colors.error, borderColor: colors.error, color: '#ffffff' },
-      },
+      okColor: 'danger',
       cancelText: 'Cancel',
-      cancelButtonProps: {
-        className: 'hover:!bg-gray-100 hover:!border-gray-300 hover:!text-gray-700',
+      okButtonProps: {
+        loading: isLoggingOut,
       },
       onOk: () => doLogout(),
     })

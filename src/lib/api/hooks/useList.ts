@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ListParams, PaginatedResponse } from '../types'
+import type { ListParams, ApiPaginatedResponse } from '../types'
 import client from "../client";
 
 export function useList<T>(endpoint: string, params: ListParams = {}) {
-    return useQuery<PaginatedResponse<T>, Error>({
+    return useQuery<ApiPaginatedResponse<T>, Error>({
         queryKey: [endpoint, params],
         queryFn: () =>
             client
-                .get<PaginatedResponse<T>>(endpoint, { params })
+                .get<ApiPaginatedResponse<T>>(endpoint, { params })
                 .then((r) => r.data),
     })
 }

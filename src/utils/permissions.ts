@@ -14,6 +14,7 @@ export const FEATURES = {
   USER: 'user',
   ROLE: 'role',
   ACCOUNT: 'account',
+  ACADEMIC_YEAR: 'academic_year',
   SETTINGS: 'settings',
   DASHBOARD: 'dashboard',
 } as const
