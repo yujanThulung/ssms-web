@@ -1,0 +1,633 @@
+/* ============================
+   Nepali Calendar — Core Styles
+   ============================ */
+
+/* CSS Custom Properties (can be overridden via inline style for theming) */
+:root {
+  --nc-primary: #16a34a;
+  --nc-primary-hover: #15803d;
+  --nc-primary-light: rgba(22, 163, 74, 0.12);
+  --nc-primary-text: #ffffff;
+  --nc-border: #e5e7eb;
+  --nc-border-hover: #d1d5db;
+  --nc-bg: #ffffff;
+  --nc-surface: #f9fafb;
+  --nc-surface-hover: #f3f4f6;
+  --nc-text: #1f2937;
+  --nc-text-muted: #6b7280;
+  --nc-weekend: #ef4444;
+  --nc-radius: 10px;
+  --nc-shadow:
+    0 10px 30px -5px rgba(0, 0, 0, 0.14),
+    0 6px 12px -4px rgba(0, 0, 0, 0.08);
+}
+
+/* =====================
+   Container
+   ===================== */
+.nc-container {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  font-family: inherit;
+  color: var(--nc-text);
+  box-sizing: border-box;
+}
+
+/* =====================
+   Trigger Input
+   ===================== */
+.nc-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 12px;
+  min-height: 38px;
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius);
+  background: var(--nc-bg);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  font-size: 14px;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.nc-trigger:hover:not(.is-disabled) {
+  border-color: var(--nc-primary);
+}
+
+.nc-trigger.is-open {
+  border-color: var(--nc-primary);
+  box-shadow: 0 0 0 2px var(--nc-primary-light);
+}
+
+.nc-trigger.is-disabled {
+  background: var(--nc-surface);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.nc-trigger-size-small {
+  min-height: 30px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.nc-trigger-size-large {
+  min-height: 44px;
+  padding: 8px 16px;
+  font-size: 15px;
+}
+
+/* =====================
+   Range Trigger — dual input fields
+   ===================== */
+.nc-range-trigger {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius);
+  background: var(--nc-bg);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  box-sizing: border-box;
+  user-select: none;
+  overflow: hidden;
+  padding: 0;
+}
+
+.nc-range-trigger:hover:not(.is-disabled) {
+  border-color: var(--nc-primary);
+}
+
+.nc-range-trigger.is-open {
+  border-color: var(--nc-primary);
+  box-shadow: 0 0 0 2px var(--nc-primary-light);
+}
+
+.nc-range-trigger.is-disabled {
+  background: var(--nc-surface);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+/* Individual date field inside the range trigger */
+.nc-range-field {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  padding: 5px 12px 4px;
+  gap: 2px;
+  transition: background 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+
+.nc-range-field.is-active {
+  background: var(--nc-primary-light);
+}
+
+.nc-range-field.is-active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--nc-primary);
+  border-radius: 0 0 0 0;
+}
+
+.nc-range-field-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--nc-text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.nc-range-field.is-active .nc-range-field-label {
+  color: var(--nc-primary);
+}
+
+.nc-range-field-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nc-text);
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.nc-range-field-placeholder {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--nc-text-muted);
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+/* Row wrapper: value + inline clear button side by side */
+.nc-range-field-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.nc-range-field-row .nc-range-field-value,
+.nc-range-field-row .nc-range-field-placeholder {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Per-field ✕ clear button — always visible when rendered */
+.nc-field-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: none;
+  background: var(--nc-text-muted);
+  color: #fff;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, opacity 0.12s;
+}
+
+.nc-field-clear-btn:hover {
+  background: #9ca3af;
+}
+
+/* Arrow separator between fields */
+.nc-range-sep {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  align-self: stretch;
+  color: var(--nc-text-muted);
+  font-size: 13px;
+  border-left: 1px solid var(--nc-border);
+  border-right: 1px solid var(--nc-border);
+  background: var(--nc-surface);
+}
+
+/* Size variants */
+.nc-trigger-size-small.nc-range-trigger {
+  min-height: 30px;
+  font-size: 12px;
+}
+
+.nc-trigger-size-small .nc-range-field {
+  padding: 3px 8px;
+}
+
+.nc-trigger-size-small .nc-range-field-label {
+  font-size: 9px;
+}
+
+.nc-trigger-size-small .nc-range-field-value,
+.nc-trigger-size-small .nc-range-field-placeholder {
+  font-size: 11px;
+}
+
+.nc-trigger-size-large.nc-range-trigger {
+  min-height: 44px;
+}
+
+.nc-trigger-size-large .nc-range-field {
+  padding: 7px 16px;
+}
+
+.nc-trigger-size-large .nc-range-field-value,
+.nc-trigger-size-large .nc-range-field-placeholder {
+  font-size: 14px;
+}
+
+.nc-trigger-value {
+  color: var(--nc-text);
+  font-weight: 500;
+}
+
+.nc-trigger-placeholder {
+  color: var(--nc-text-muted);
+}
+
+.nc-trigger-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  margin-right: 10px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.nc-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: var(--nc-surface-hover);
+  color: var(--nc-text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1;
+}
+
+.nc-clear-btn:hover {
+  background: var(--nc-border-hover);
+  color: var(--nc-text);
+}
+
+/* =====================
+   Floating Popover
+   ===================== */
+.nc-popover {
+  position: fixed;
+  background: var(--nc-bg);
+  border: 1px solid var(--nc-border);
+  border-radius: calc(var(--nc-radius) + 2px);
+  box-shadow: var(--nc-shadow);
+  padding: 16px;
+  box-sizing: border-box;
+  animation: nc-fadeIn 0.15s ease-out;
+  user-select: none;
+}
+
+@keyframes nc-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =====================
+   Dual-Month Layout
+   ===================== */
+.nc-months-wrapper {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+
+.nc-month-panel {
+  flex: 1;
+  min-width: 270px;
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
+/* Separator line between dual calendars */
+.nc-calendar-divider {
+  width: 1px;
+  background: var(--nc-border);
+  margin: 0 8px;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+/* =====================
+   Calendar Header
+   ===================== */
+.nc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 0 2px;
+}
+
+.nc-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.nc-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nc-text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s;
+  padding: 0;
+  line-height: 1;
+}
+
+.nc-nav-btn:hover:not(:disabled) {
+  background: var(--nc-surface-hover);
+  color: var(--nc-text);
+}
+
+.nc-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.nc-header-selectors {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+}
+
+/* =====================
+   Select / Dropdown (themed to match calendar)
+   ===================== */
+.nc-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 4px 24px 4px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1.5px solid var(--nc-border);
+  border-radius: 7px;
+  background-color: var(--nc-bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  color: var(--nc-text);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+  min-width: 0;
+  max-width: 110px;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.nc-select:hover {
+  border-color: var(--nc-primary);
+  background-color: var(--nc-surface);
+}
+
+.nc-select:focus {
+  border-color: var(--nc-primary);
+  box-shadow: 0 0 0 2px var(--nc-primary-light);
+  background-color: var(--nc-bg);
+}
+
+/* Option styling — inherits from select but we force background */
+.nc-select option {
+  font-weight: 500;
+  background-color: var(--nc-bg);
+  color: var(--nc-text);
+}
+
+/* =====================
+   Weekday Row
+   ===================== */
+.nc-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 5px;
+}
+
+.nc-weekday {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--nc-text-muted);
+  letter-spacing: 0.01em;
+}
+
+.nc-weekday.is-weekend {
+  color: var(--nc-weekend);
+}
+
+/* =====================
+   Day Grid
+   ===================== */
+.nc-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.nc-day-empty {
+  height: 34px;
+}
+
+.nc-day-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nc-text);
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+}
+
+.nc-day-num {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.nc-day-cell:hover:not(.is-disabled):not(.is-selected):not(.is-range-endpoint) {
+  background: var(--nc-surface-hover);
+}
+
+.nc-day-cell.is-disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.nc-day-cell.is-today:not(.is-selected):not(.is-range-endpoint) {
+  font-weight: 700;
+  color: var(--nc-primary);
+  box-shadow: inset 0 0 0 1.5px var(--nc-primary);
+}
+
+.nc-day-cell.is-selected,
+.nc-day-cell.is-range-endpoint {
+  background: var(--nc-primary) !important;
+  color: var(--nc-primary-text) !important;
+  font-weight: 700;
+}
+
+.nc-day-cell.is-range-start {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.nc-day-cell.is-range-end {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.nc-day-cell.is-in-range,
+.nc-day-cell.is-range-preview {
+  background: var(--nc-primary-light);
+  border-radius: 0;
+  color: var(--nc-text);
+}
+
+.nc-day-cell.is-range-preview:hover {
+  background: var(--nc-primary-light);
+}
+
+/* AD tiny badge */
+.nc-ad-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 8px;
+  color: var(--nc-text-muted);
+  opacity: 0.7;
+}
+
+.nc-day-cell.is-selected .nc-ad-badge,
+.nc-day-cell.is-range-endpoint .nc-ad-badge {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* =====================
+   Footer
+   ===================== */
+.nc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--nc-border);
+  font-size: 12px;
+}
+
+.nc-footer-meta {
+  color: var(--nc-text-muted);
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.nc-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Action buttons in footer — themed with primary color */
+.nc-action-btn {
+  padding: 4px 11px;
+  border: 1.5px solid var(--nc-primary);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nc-primary);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+.nc-action-btn:hover {
+  background: var(--nc-primary);
+  color: var(--nc-primary-text);
+  border-color: var(--nc-primary);
+}
+
+.nc-action-btn.is-active {
+  background: var(--nc-primary);
+  color: var(--nc-primary-text);
+  border-color: var(--nc-primary);
+}
