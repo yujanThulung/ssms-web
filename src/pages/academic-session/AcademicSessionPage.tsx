@@ -1,11 +1,9 @@
 import { useState } from 'react'
-import dayjs, { type Dayjs } from 'dayjs'
 import {
     Alert,
     Button,
     Card,
     Col,
-    DatePicker,
     Drawer,
     Dropdown,
     Form,
@@ -17,6 +15,7 @@ import {
     Timeline,
     Typography,
 } from 'antd'
+import { NepaliDateRangePicker, type BsDateRange } from '../../components/nepali-calendar'
 import type { ColumnsType } from 'antd/es/table'
 import type { MenuProps } from 'antd'
 import {
@@ -36,6 +35,7 @@ import { AppTable } from '../../components/common/AppTable'
 import { TableSkeleton } from '../../components/skeleton'
 import { SearchAndFilter } from '../../components/common/SearchAndFilter'
 import { appConfirm } from '../../components/common/AppConfirm'
+import { bsIsoToAdIso, adIsoToBsIso, formatBsDateFromAd } from '../../utils/nepaliDate'
 import { colors, DRAWER } from '../../lib/designTokens'
 import { useQueryClient } from '@tanstack/react-query'
 import client from '../../lib/api/client'
@@ -123,7 +123,7 @@ export default function AcademicSessionPage() {
     const [editing, setEditing] = useState<AcademicSession | null>(null)
     const [viewing, setViewing] = useState<AcademicSession | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
-    const [form] = Form.useForm<{ name: string; range: [Dayjs, Dayjs] }>()
+    const [form] = Form.useForm<{ name: string; range: BsDateRange | undefined }>()
 
     const invalidateAcademicData = () => {
         queryClient.invalidateQueries({
@@ -161,18 +161,28 @@ export default function AcademicSessionPage() {
 
     const openEdit = (s: AcademicSession) => {
         setEditing(s)
-        form.setFieldsValue({ name: s.name, range: [dayjs(s.startDate), dayjs(s.endDate)] })
+        // Convert stored AD dates to BS for the picker
+        form.setFieldsValue({
+            name: s.name,
+            range: { from: adIsoToBsIso(s.startDate), to: adIsoToBsIso(s.endDate) },
+        })
         setDrawerOpen(true)
     }
 
     const onSubmit = async () => {
         try {
             const values = await form.validateFields()
+            const range = values.range
+            if (!range?.from || !range?.to) {
+                form.setFields([{ name: 'range', errors: ['Please select session dates'] }])
+                return
+            }
             setIsSubmitting(true)
+            // Convert BS dates to AD before sending to API
             const payload = {
                 name: values.name.trim(),
-                startDate: values.range[0].format('YYYY-MM-DD'),
-                endDate: values.range[1].format('YYYY-MM-DD'),
+                startDate: bsIsoToAdIso(range.from),
+                endDate: bsIsoToAdIso(range.to),
             }
 
             if (editing) {
@@ -603,8 +613,18 @@ export default function AcademicSessionPage() {
                     <Form.Item name="name" label="Academic year" rules={[{ required: true, message: 'Please enter academic year' }]}>
                         <Input placeholder="2027 / 2028" size="large" />
                     </Form.Item>
-                    <Form.Item name="range" label="Session dates" rules={[{ required: true, message: 'Please select session dates' }]}>
-                        <DatePicker.RangePicker style={{ width: '100%' }} size="large" />
+                    <Form.Item
+                        name="range"
+                        label="Session dates (Nepali / BS calendar)"
+                        rules={[{ required: true, message: 'Please select session dates' }]}
+                    >
+                        <NepaliDateRangePicker
+                            locale="ne"
+                            numberOfMonths={2}
+                            placeholder="मितिको दायरा छान्नुहोस्"
+                            primaryColor="#16a34a"
+                            zIndex={1200}
+                        />
                     </Form.Item>
                 </Form>
             </Drawer>
@@ -653,11 +673,13 @@ export default function AcademicSessionPage() {
                         </div>
                         <div>
                             <Text type="secondary">Start Date</Text>
-                            <div>{viewing.startDate}</div>
+                            <div style={{ fontWeight: 500 }}>{formatBsDateFromAd(viewing.startDate)}</div>
+                            <div style={{ fontSize: 12, color: colors.muted }}>({viewing.startDate})</div>
                         </div>
                         <div>
                             <Text type="secondary">End Date</Text>
-                            <div>{viewing.endDate}</div>
+                            <div style={{ fontWeight: 500 }}>{formatBsDateFromAd(viewing.endDate)}</div>
+                            <div style={{ fontSize: 12, color: colors.muted }}>({viewing.endDate})</div>
                         </div>
                         <div>
                             <Text type="secondary">Status</Text>

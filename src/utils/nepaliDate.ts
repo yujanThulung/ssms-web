@@ -7,7 +7,7 @@
  */
 import { bsToAdParts, adToBs, BS_MONTH_NAMES_EN } from '../components/nepali-calendar/calendarData'
 
-// ─── BS → AD ────────────────────────────────────────────────────────────────
+//  BS → AD 
 
 /**
  * Convert a BS ISO string "YYYY-MM-DD" to an AD ISO string "YYYY-MM-DD".
@@ -18,7 +18,7 @@ export function bsIsoToAdIso(bsIso: string): string {
     return `${ad.year}-${String(ad.month).padStart(2, '0')}-${String(ad.day).padStart(2, '0')}`
 }
 
-// ─── AD → BS ────────────────────────────────────────────────────────────────
+//  AD → BS 
 
 /**
  * Convert an AD ISO string "YYYY-MM-DD" to a BS ISO string "YYYY-MM-DD".
@@ -29,7 +29,7 @@ export function adIsoToBsIso(adIso: string): string {
     return `${bs.year}-${String(bs.month).padStart(2, '0')}-${String(bs.day).padStart(2, '0')}`
 }
 
-// ─── Display helpers ─────────────────────────────────────────────────────────
+//  Display helpers 
 
 /**
  * Returns a human-readable BS date string like "15 Baisakh 2082"
