@@ -34,5 +34,9 @@ export const ENDPOINTS = {
     SET_CURRENT: (id: string | number) => `/academic-years/${id}/set-current`,
     CLONE: (id: string | number) => `/academic-years/${id}/clone`,
     ARCHIVE: (id: string | number) => `/academic-years/${id}/archive`,
+  },
+  CLASSES: {
+    BASE: '/classes',
+    DETAIL: (id: string | number) => `/classes/${id}`,
   }
 } as const

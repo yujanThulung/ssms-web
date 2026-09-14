@@ -1,0 +1,1091 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  Table, Drawer, Button, Space, Select,
+  Form, InputNumber, Row, Col, Descriptions, Avatar, Tabs, Typography, Input,
+} from 'antd'
+import type { ColumnsType } from 'antd/es/table'
+import {
+  PlusOutlined, EditOutlined, EyeOutlined, StopOutlined,
+  DeleteOutlined, BookOutlined, TeamOutlined,
+  UserOutlined, AppstoreOutlined,
+} from '@ant-design/icons'
+import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
+import client from '../../lib/api/client'
+import { colors, DRAWER, radius } from '../../lib/designTokens'
+import { usePermission } from '../../context/PermissionContext'
+import { FEATURES, ACTIONS } from '../../utils/permissions'
+import { appConfirm } from '../../components/common/AppConfirm'
+import { StatusBadge } from '../../components/common/StatusBadge'
+import { AppTable } from '../../components/common/AppTable'
+import { SearchAndFilter } from '../../components/common/SearchAndFilter'
+import { StatCard } from '../../components/common/StatCard'
+import { ENDPOINTS } from '../../lib/api/endpoints'
+import { useGet } from '../../lib/api/hooks/useGet'
+import type { ApiPaginatedResponse, ApiResponse } from '../../lib/api/types'
+import type { SchoolClass, Section, AcademicYear } from './types'
+import { MOCK_SECTIONS, MOCK_TEACHERS } from './mockData'
+import { TableSkeleton } from '../../components/skeleton'
+
+const { Title, Text } = Typography
+
+//  Helpers 
+
+function initials(name: string) {
+  return name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+}
+
+/** Invalidates all /classes cache keys, optionally scoped to an academicYearId */
+function classesQueryPredicate(academicYearId?: string) {
+  return (query: { queryKey: readonly unknown[] }) => {
+    const key = query.queryKey[0]
+    if (typeof key !== 'string') return false
+    if (!key.startsWith(ENDPOINTS.CLASSES.BASE)) return false
+    if (academicYearId) return key.includes(academicYearId)
+    return true
+  }
+}
+
+//  I───n-memory store for sections (swap with sections API later) 
+
+function useSectionStore() {
+  const [sections, setSections] = useState<Section[]>(MOCK_SECTIONS)
+
+  return {
+    sections,
+    sectionsByClass: (cid: string) => sections.filter((s) => s.classId === cid),
+
+    addSection: (s: Omit<Section, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>) =>
+      setSections((prev) => [
+        ...prev,
+        {
+          ...s,
+          id: `sec-${Date.now()}`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          deletedAt: null,
+        },
+      ]),
+
+    updateSection: (id: string, patch: Partial<Section>) =>
+      setSections((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s))),
+
+    removeSection: (id: string) =>
+      setSections((prev) => prev.filter((s) => s.id !== id)),
+  }
+}
+
+type SectionStore = ReturnType<typeof useSectionStore>
+
+//  MAIN PAGE 
+
+export default function ClassAndSection() {
+  const { can } = usePermission()
+  const canCreate = can(FEATURES.CLASS_SECTION, ACTIONS.CREATE)
+  const canUpdate = can(FEATURES.CLASS_SECTION, ACTIONS.UPDATE)
+  const canDelete = can(FEATURES.CLASS_SECTION, ACTIONS.DELETE)
+  const canCreateSection = can(FEATURES.CLASS_SECTION, ACTIONS.CREATE)
+
+  const sectionStore = useSectionStore()
+
+  const [activeTab, setActiveTab] = useState('classes')
+  const [classDrawer, setClassDrawer] = useState(false)
+  const [sectionDrawer, setSectionDrawer] = useState(false)
+  const [editingClass, setEditingClass] = useState<SchoolClass | null>(null)
+  const [editingSection, setEditingSection] = useState<Partial<Section> | null>(null)
+  const [viewClass, setViewClass] = useState<SchoolClass | null>(null)
+  const [viewSection, setViewSection] = useState<Section | null>(null)
+
+  // KPI counts bubbled up from ClassesTab
+  const [classCounts, setClassCounts] = useState({ total: 0, active: 0 })
+  // Selected academic year bubbled up from ClassesTab (for drawers)
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>(undefined)
+
+  const activeSections = sectionStore.sections.filter((s) => s.status === 'ACTIVE').length
+  const totalCapacity = sectionStore.sections.reduce((sum, s) => sum + (s.capacity ?? 0), 0)
+
+  const kpiCards = [
+    { icon: <BookOutlined />,     label: 'Total Classes',   value: classCounts.total,            color: colors.primary, bg: colors.primaryLight },
+    { icon: <AppstoreOutlined />, label: 'Active Classes',  value: classCounts.active,           color: colors.success, bg: colors.successLight },
+    { icon: <TeamOutlined />,     label: 'Total Sections',  value: sectionStore.sections.length, color: colors.info,    bg: colors.infoLight },
+    { icon: <AppstoreOutlined />, label: 'Active Sections', value: activeSections,               color: colors.success, bg: colors.successLight },
+    { icon: <UserOutlined />,     label: 'Total Capacity',  value: totalCapacity || '—',         color: colors.warning, bg: colors.warningLight },
+  ]
+
+  const openAddClass   = () => { setEditingClass(null); setClassDrawer(true) }
+  const openEditClass  = (c: SchoolClass) => { setEditingClass(c); setClassDrawer(true) }
+  const openAddSection = (c?: SchoolClass) => {
+    setEditingSection(c ? { classId: c.id } : null)
+    setSectionDrawer(true)
+  }
+
+  return (
+    <div style={{ padding: 24 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <Title level={4} style={{ margin: 0, color: colors.text }}>Classes &amp; Sections</Title>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            Configure classes and sections for each academic year
+          </Text>
+        </div>
+        <Space>
+          {canCreateSection && (
+            <Button icon={<PlusOutlined />} onClick={() => openAddSection()}>
+              Add Section
+            </Button>
+          )}
+          {canCreate && (
+            <Button type="primary" icon={<PlusOutlined />} style={{ background: colors.primary }} onClick={openAddClass}>
+              Add Class
+            </Button>
+          )}
+        </Space>
+      </div>
+
+      {/* KPI Cards */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        {kpiCards.map((kpi) => (
+          <Col key={kpi.label} xs={12} sm={8} md={6} lg={4}>
+            <StatCard
+              variant="default"
+              size="middle"
+              label={kpi.label}
+              value={kpi.value}
+              icon={kpi.icon}
+              color={kpi.color}
+              iconBg={kpi.bg}
+            />
+          </Col>
+        ))}
+      </Row>
+
+      {/* Tabs */}
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: 'classes',
+            label: 'Classes',
+            children: (
+              <ClassesTab
+                sectionStore={sectionStore}
+                canUpdate={canUpdate}
+                canDelete={canDelete}
+                canCreateSection={canCreateSection}
+                onEdit={openEditClass}
+                onView={(c) => setViewClass(c)}
+                onAddSection={openAddSection}
+                onCountsChange={setClassCounts}
+                onAcademicYearChange={setSelectedAcademicYearId}
+              />
+            ),
+          },
+          {
+            key: 'sections',
+            label: 'Sections',
+            children: (
+              <SectionsTab
+                sectionStore={sectionStore}
+                canUpdate={canUpdate}
+                onEdit={(s) => { setEditingSection(s); setSectionDrawer(true) }}
+                onView={(s) => setViewSection(s)}
+              />
+            ),
+          },
+        ]}
+      />
+
+      {/* Drawers */}
+      <ClassFormDrawer
+        open={classDrawer}
+        academicYearId={selectedAcademicYearId}
+        editing={editingClass}
+        onClose={() => { setClassDrawer(false); setEditingClass(null) }}
+      />
+      <SectionFormDrawer
+        open={sectionDrawer}
+        academicYearId={selectedAcademicYearId}
+        editing={editingSection}
+        sectionStore={sectionStore}
+        onClose={() => { setSectionDrawer(false); setEditingSection(null) }}
+      />
+      <ClassDetailDrawer
+        schoolClass={viewClass}
+        sectionStore={sectionStore}
+        canUpdate={canUpdate}
+        canCreateSection={canCreateSection}
+        onClose={() => setViewClass(null)}
+        onEdit={(c) => { setViewClass(null); openEditClass(c) }}
+        onAddSection={(c) => { setViewClass(null); openAddSection(c) }}
+        onViewSection={(s) => { setViewClass(null); setViewSection(s) }}
+      />
+      <SectionDetailDrawer
+        section={viewSection}
+        sectionStore={sectionStore}
+        canUpdate={canUpdate}
+        onClose={() => setViewSection(null)}
+        onEdit={(s) => { setViewSection(null); setEditingSection(s); setSectionDrawer(true) }}
+      />
+    </div>
+  )
+}
+
+//  CLASSES TAB 
+
+function ClassesTab({
+  sectionStore, canUpdate, canDelete, canCreateSection,
+  onEdit, onView, onAddSection, onCountsChange, onAcademicYearChange,
+}: {
+  sectionStore: SectionStore
+  canUpdate: boolean
+  canDelete: boolean
+  canCreateSection: boolean
+  onEdit: (c: SchoolClass) => void
+  onView: (c: SchoolClass) => void
+  onAddSection: (c: SchoolClass) => void
+  onCountsChange: (counts: { total: number; active: number }) => void
+  onAcademicYearChange: (id: string | undefined) => void
+}) {
+  const qc = useQueryClient()
+
+  const [q, setQ] = useState('')
+  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({})
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [sortBy, setSortBy] = useState('name')
+  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC')
+
+  const statusFilter      = filterValues['status']
+  const academicYearId    = filterValues['academicYearId']
+
+  // Fetch academic years for the filter dropdown — runs once, no waterfall
+  const { data: academicYearsResponse } = useGet<ApiPaginatedResponse<AcademicYear>>(
+    `${ENDPOINTS.ACADEMIC_YEARS.LIST}?limit=50&sortBy=startDate&sortOrder=DESC`,
+  )
+  const academicYears = academicYearsResponse?.data ?? []
+
+  // Keep parent informed about current academicYearId (for drawers)
+  useEffect(() => {
+    onAcademicYearChange(academicYearId)
+  }, [academicYearId])
+
+  const queryParams = new URLSearchParams({
+    page: page.toString(),
+    limit: limit.toString(),
+    sortBy,
+    sortOrder,
+  })
+  if (q) queryParams.append('search', q)
+  if (statusFilter) queryParams.append('status', statusFilter)
+  if (academicYearId) queryParams.append('academicYearId', academicYearId)
+
+  const queryKey = `${ENDPOINTS.CLASSES.BASE}?${queryParams.toString()}`
+
+  const { data: listResponse, isLoading: isTableLoading, isFetching } = useGet<ApiPaginatedResponse<SchoolClass>>(queryKey)
+
+  const rows = listResponse?.data ?? []
+  const meta = listResponse?.meta
+
+  const invalidateClasses = () =>
+    qc.invalidateQueries({ predicate: classesQueryPredicate(academicYearId) })
+
+  // Bubble counts to parent KPI cards
+  useEffect(() => {
+    onCountsChange({
+      total: meta?.total ?? 0,
+      active: rows.filter((c) => c.status === 'ACTIVE').length,
+    })
+  }, [rows, meta?.total])
+
+
+
+  const handleDelete = (c: SchoolClass) => {
+    const sectionCount = sectionStore.sectionsByClass(c.id).length
+    appConfirm({
+      title: `Delete ${c.name}?`,
+      content: sectionCount > 0
+        ? `This will also delete ${sectionCount} section(s). This cannot be undone.`
+        : 'This cannot be undone.',
+      okText: 'Delete',
+      okColor: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          await client.delete(ENDPOINTS.CLASSES.DETAIL(c.id))
+          toast.success(`${c.name} deleted`)
+          invalidateClasses()
+        } catch (err: any) {
+          toast.error(err?.message || 'Failed to delete class')
+        }
+      },
+    })
+  }
+
+  const filterColumns = [
+    { key: 'name', title: 'Class Name', isSearchable: true },
+    {
+      key: 'academicYearId',
+      title: 'Academic Year',
+      isFilterable: true,
+      filterWidth: 200,
+      filterOptions: academicYears.map((y) => ({
+        label: `${y.name}${y.status === 'CURRENT' ? ' (Current)' : ''}`,
+        value: y.id,
+      })),
+    },
+    {
+      key: 'status',
+      title: 'Status',
+      isFilterable: true,
+      filterWidth: 130,
+      filterOptions: [
+        { label: 'Active',   value: 'ACTIVE' },
+        { label: 'Inactive', value: 'INACTIVE' },
+      ],
+    },
+  ]
+
+  const columns: ColumnsType<SchoolClass> = [
+    {
+      title: 'Class Name',
+      dataIndex: 'name',
+      sorter: true,
+      render: (name: string) => (
+        <Space>
+          <Avatar size={32} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 11 }}>
+            {initials(name)}
+          </Avatar>
+          <span style={{ fontWeight: 500 }}>{name}</span>
+        </Space>
+      ),
+    },
+    {
+      title: 'Code',
+      dataIndex: 'code',
+      render: (v: string) => <span style={{ fontFamily: 'monospace' }}>{v}</span>,
+    },
+    {
+      title: 'Academic Year',
+      key: 'academicYear',
+      render: (_: unknown, c: SchoolClass) => c.academicYear?.name ?? '—',
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      render: (v: string) => <StatusBadge status={v} />,
+    },
+    {
+      title: 'Created',
+      dataIndex: 'createdAt',
+      render: (v: string) => (
+        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>
+          {new Date(v).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      fixed: 'right',
+      width: 200,
+      align: 'center',
+      render: (_: unknown, c: SchoolClass) => (
+        <Space size={6} onClick={(e) => e.stopPropagation()}>
+          <Button
+            type="default" size="small" icon={<EyeOutlined />} title="View Details"
+            onClick={() => onView(c)}
+            style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
+          />
+          {canCreateSection && (
+            <Button
+              type="default" size="small" icon={<PlusOutlined />} title="Add Section"
+              onClick={() => onAddSection(c)}
+              style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
+            />
+          )}
+          {canUpdate && (
+            <Button
+              type="default" size="small" icon={<EditOutlined />} title="Edit"
+              onClick={() => onEdit(c)}
+              style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
+            />
+          )}
+        </Space>
+      ),
+    },
+  ]
+
+  return (
+    <>
+      <SearchAndFilter
+        columns={filterColumns}
+        searchValue={q}
+        onSearchChange={setQ}
+        debounceMs={300}
+        filterValues={filterValues}
+        onFilterChange={(key, value) => {
+          setFilterValues((prev) => ({ ...prev, [key]: value }))
+          setPage(1)
+        }}
+      />
+      {isTableLoading ? (
+        <div style={{
+          backgroundColor: colors.surface,
+          border: `1px solid ${colors.border}`,
+          borderRadius: 12,
+          overflow: 'hidden',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+        }}>
+          <TableSkeleton rows={Math.min(limit, 5)} columns={5} />
+        </div>
+      ) : (
+        <AppTable<SchoolClass>
+          rowKey="id"
+          columns={columns}
+          dataSource={rows}
+          loading={isFetching}
+          onRowClick={(c) => onView(c)}
+          onChange={(pagination, _filters, sorter: any) => {
+            setPage(pagination.current || 1)
+            setLimit(pagination.pageSize || 10)
+            if (sorter?.field) {
+              setSortBy(sorter.field)
+              setSortOrder(sorter.order === 'ascend' ? 'ASC' : 'DESC')
+            }
+          }}
+          pagination={{
+            current: page,
+            pageSize: limit,
+            total: meta?.total ?? 0,
+            showSizeChanger: true,
+          }}
+          scroll={{ x: 800 }}
+          locale={{ emptyText: 'No classes found.' }}
+        />
+      )}
+    </>
+  )
+}
+
+// ─── SECTIONS TAB ────────────────────────────────────────────────────────────
+
+function SectionsTab({ sectionStore, canUpdate, onEdit, onView }: {
+  sectionStore: SectionStore
+  canUpdate: boolean
+  onEdit: (s: Section) => void
+  onView: (s: Section) => void
+}) {
+  const [q, setQ] = useState('')
+  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({})
+
+  const classFilter  = filterValues['classId']
+  const statusFilter = filterValues['status']
+
+  const teacherById = useMemo(
+    () => Object.fromEntries(MOCK_TEACHERS.map((t) => [t.id, t])),
+    [],
+  )
+
+  const filtered = useMemo(() =>
+    sectionStore.sections.filter((s) => {
+      if (statusFilter && s.status !== statusFilter) return false
+      if (classFilter  && s.classId !== classFilter)  return false
+      if (q) {
+        const ql = q.toLowerCase()
+        return s.name.toLowerCase().includes(ql) || s.code.toLowerCase().includes(ql)
+      }
+      return true
+    }), [sectionStore.sections, q, classFilter, statusFilter])
+
+  const filterColumns = [
+    { key: 'name', title: 'Section', isSearchable: true },
+    {
+      key: 'status',
+      title: 'Status',
+      isFilterable: true,
+      filterWidth: 130,
+      filterOptions: [
+        { label: 'Active',   value: 'ACTIVE' },
+        { label: 'Inactive', value: 'INACTIVE' },
+      ],
+    },
+  ]
+
+  const columns: ColumnsType<Section> = [
+    {
+      title: 'Section',
+      key: 'section',
+      sorter: (a, b) => a.name.localeCompare(b.name),
+      render: (_: unknown, s: Section) => (
+        <Space>
+          <Avatar size={32} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 13 }}>
+            {s.name}
+          </Avatar>
+          <span style={{ fontWeight: 500 }}>Section {s.name}</span>
+        </Space>
+      ),
+    },
+    {
+      title: 'Code',
+      dataIndex: 'code',
+      render: (v: string) => <span style={{ fontFamily: 'monospace' }}>{v}</span>,
+    },
+    {
+      title: 'Class Teacher',
+      key: 'teacher',
+      render: (_: unknown, s: Section) =>
+        s.classTeacherId
+          ? (teacherById[s.classTeacherId]?.name ?? '—')
+          : <span style={{ color: colors.muted }}>Not assigned</span>,
+    },
+    {
+      title: 'Capacity',
+      dataIndex: 'capacity',
+      width: 100,
+      render: (v: number | null) => v != null ? v : <span style={{ color: colors.muted }}>—</span>,
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      width: 110,
+      render: (v: string) => <StatusBadge status={v} />,
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      fixed: 'right',
+      width: 80,
+      render: (_: unknown, s: Section) => (
+        <Space size={4} onClick={(e) => e.stopPropagation()}>
+          <Button type="text" size="small" icon={<EyeOutlined />} title="View Details" onClick={() => onView(s)} />
+          {canUpdate && (
+            <Button type="text" size="small" icon={<EditOutlined />} title="Edit" onClick={() => onEdit(s)} />
+          )}
+        </Space>
+      ),
+    },
+  ]
+
+  return (
+    <>
+      <SearchAndFilter
+        columns={filterColumns}
+        searchValue={q}
+        onSearchChange={setQ}
+        debounceMs={300}
+        filterValues={filterValues}
+        onFilterChange={(key, value) => setFilterValues((prev) => ({ ...prev, [key]: value }))}
+      />
+      <AppTable<Section>
+        rowKey="id"
+        columns={columns}
+        dataSource={filtered}
+        onRowClick={(s) => onView(s)}
+        scroll={{ x: 900 }}
+        locale={{ emptyText: 'No sections configured.' }}
+      />
+    </>
+  )
+}
+
+// ─── CLASS FORM DRAWER ───────────────────────────────────────────────────────
+
+type ClassFormValues = {
+  name: string
+  academicYearId: string
+  status: 'ACTIVE' | 'INACTIVE'
+}
+
+function ClassFormDrawer({ open, academicYearId, editing, onClose }: {
+  open: boolean
+  academicYearId: string | undefined
+  editing: SchoolClass | null
+  onClose: () => void
+}) {
+  const qc = useQueryClient()
+  const [form] = Form.useForm<ClassFormValues>()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const isEditing = Boolean(editing)
+
+  // Academic years for the drawer's select
+  const { data: academicYearsResponse } = useGet<ApiPaginatedResponse<AcademicYear>>(
+    `${ENDPOINTS.ACADEMIC_YEARS.LIST}?limit=50&sortBy=startDate&sortOrder=DESC`,
+  )
+  const academicYears = academicYearsResponse?.data ?? []
+
+  const invalidateClasses = () =>
+    qc.invalidateQueries({ predicate: classesQueryPredicate(academicYearId) })
+
+  const onOpen = () => {
+    if (editing) {
+      form.setFieldsValue({
+        name: editing.name,
+        status: editing.status,
+        academicYearId: editing.academicYearId,
+      })
+    } else {
+      form.resetFields()
+      form.setFieldsValue({
+        status: 'ACTIVE',
+        // Pre-fill with whatever the user currently has filtered, if any
+        ...(academicYearId ? { academicYearId } : {}),
+      })
+    }
+  }
+
+  const onSubmit = async () => {
+    try {
+      const values = await form.validateFields()
+      setIsSubmitting(true)
+
+      const payload = {
+        name: values.name.trim(),
+        status: values.status,
+        academicYearId: values.academicYearId,
+      }
+
+      if (isEditing && editing) {
+        await client.patch<ApiResponse<SchoolClass>>(ENDPOINTS.CLASSES.DETAIL(editing.id), payload)
+        toast.success(`${values.name} updated`)
+      } else {
+        await client.post<ApiResponse<SchoolClass>>(ENDPOINTS.CLASSES.BASE, payload)
+        toast.success(`${values.name} created`)
+      }
+
+      invalidateClasses()
+      form.resetFields()
+      onClose()
+    } catch (err: any) {
+      if (err?.errorFields) return
+      toast.error(err?.message || 'Operation failed')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <Drawer
+      title={isEditing ? 'Edit Class' : 'Add Class'}
+      open={open}
+      onClose={() => { form.resetFields(); onClose() }}
+      size={DRAWER.width}
+      afterOpenChange={(v) => v && onOpen()}
+      extra={
+        <Space>
+          <Button onClick={() => { form.resetFields(); onClose() }}>Cancel</Button>
+          <Button
+            type="primary"
+            style={{ background: colors.primary }}
+            loading={isSubmitting}
+            onClick={onSubmit}
+          >
+            {isEditing ? 'Save Changes' : 'Create Class'}
+          </Button>
+        </Space>
+      }
+    >
+      <Form form={form} layout="vertical" requiredMark="optional">
+        <Typography.Text strong style={{ fontSize: 13 }}>Class Information</Typography.Text>
+        <p style={{ margin: '4px 0 16px', fontSize: 12, color: colors.muted }}>
+          Basic details that identify this class.
+        </p>
+
+        <Form.Item
+          name="name"
+          label="Class Name"
+          rules={[
+            { required: true, message: 'Class name is required' },
+            { max: 100, message: 'Max 100 characters' },
+          ]}
+        >
+          <Input placeholder="e.g. Class 1, Grade 10, Nursery" />
+        </Form.Item>
+        <Form.Item
+          name="academicYearId"
+          label="Academic Year"
+          rules={[{ required: true, message: 'Academic year is required' }]}
+        >
+          <Select
+            placeholder="Select academic year"
+            options={academicYears.map((y) => ({
+              label: `${y.name}${y.status === 'CURRENT' ? ' (Current)' : ''}`,
+              value: y.id,
+            }))}
+          />
+        </Form.Item>
+
+        <Typography.Text strong style={{ fontSize: 13 }}>Configuration</Typography.Text>
+        <div style={{ marginTop: 12 }}>
+          <Form.Item name="status" label="Status" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { label: 'Active',   value: 'ACTIVE' },
+                { label: 'Inactive', value: 'INACTIVE' },
+              ]}
+            />
+          </Form.Item>
+        </div>
+      </Form>
+    </Drawer>
+  )
+}
+
+// ─── SECTION FORM DRAWER ─────────────────────────────────────────────────────
+
+type SectionFormValues = {
+  classId: string
+  name: string
+  code: string
+  capacity: number | null
+  classTeacherId: string | null
+  status: 'ACTIVE' | 'INACTIVE'
+}
+
+function SectionFormDrawer({ open, academicYearId, editing, sectionStore, onClose }: {
+  open: boolean
+  academicYearId: string | undefined
+  editing: Partial<Section> | null
+  sectionStore: SectionStore
+  onClose: () => void
+}) {
+  const [form] = Form.useForm<SectionFormValues>()
+  const isEditing = Boolean(editing?.id)
+  const activeTeachers = MOCK_TEACHERS.filter((t) => t.status === 'Active')
+
+  // Load active classes only when an academic year is selected
+  const { data: classesResponse } = useGet<ApiPaginatedResponse<SchoolClass>>(
+    `${ENDPOINTS.CLASSES.BASE}?limit=100&academicYearId=${academicYearId}&status=ACTIVE`,
+    Boolean(academicYearId),
+  )
+  const activeClasses = classesResponse?.data ?? []
+
+  const onOpen = () => {
+    if (editing?.id) {
+      form.setFieldsValue({
+        classId:        editing.classId,
+        name:           editing.name,
+        capacity:       editing.capacity ?? null,
+        classTeacherId: editing.classTeacherId ?? null,
+        status:         editing.status ?? 'ACTIVE',
+      })
+    } else if (editing?.classId) {
+      form.resetFields()
+      form.setFieldsValue({ classId: editing.classId, status: 'ACTIVE' })
+    } else {
+      form.resetFields()
+      form.setFieldsValue({ status: 'ACTIVE' })
+    }
+  }
+
+  const onSubmit = async () => {
+    const values = await form.validateFields()
+    const existing = sectionStore.sectionsByClass(values.classId)
+
+    const nameDup = existing.find(
+      (s) => s.name.trim().toLowerCase() === values.name.trim().toLowerCase() && s.id !== editing?.id,
+    )
+    if (nameDup) {
+      form.setFields([{ name: 'name', errors: ['A section with this name already exists in this class.'] }])
+      return
+    }
+    const payload = {
+      classId:        values.classId,
+      name:           values.name,
+      capacity:       values.capacity ?? null,
+      classTeacherId: values.classTeacherId ?? null,
+      status:         values.status,
+    }
+
+    if (isEditing && editing?.id) {
+      sectionStore.updateSection(editing.id, payload)
+      toast.success(`Section ${values.name} updated`)
+    } else {
+      sectionStore.addSection(payload)
+      toast.success(`Section ${values.name} created`)
+    }
+    form.resetFields()
+    onClose()
+  }
+
+  return (
+    <Drawer
+      title={isEditing ? 'Edit Section' : 'Add Section'}
+      open={open}
+      onClose={() => { form.resetFields(); onClose() }}
+      size={DRAWER.width}
+      afterOpenChange={(v) => v && onOpen()}
+      extra={
+        <Space>
+          <Button onClick={() => { form.resetFields(); onClose() }}>Cancel</Button>
+          <Button type="primary" style={{ background: colors.primary }} onClick={onSubmit}>
+            {isEditing ? 'Save Changes' : 'Create Section'}
+          </Button>
+        </Space>
+      }
+    >
+      <Form form={form} layout="vertical" requiredMark="optional">
+        <Typography.Text strong style={{ fontSize: 13 }}>Assignment</Typography.Text>
+        <p style={{ margin: '4px 0 12px', fontSize: 12, color: colors.muted }}>
+          Select the class this section belongs to.
+        </p>
+        <Form.Item name="classId" label="Class" rules={[{ required: true, message: 'Class is required' }]}>
+          <Select
+            placeholder="Select class"
+            disabled={isEditing}
+            options={activeClasses.map((c) => ({ label: c.name, value: c.id }))}
+          />
+        </Form.Item>
+
+        <Typography.Text strong style={{ fontSize: 13 }}>Section Details</Typography.Text>
+        <div style={{ marginTop: 12 }}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="name" label="Section Name" rules={[{ required: true, message: 'Section name is required' }]}>
+                <Input placeholder="e.g. A, B, Crimson" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="capacity" label="Capacity (optional)">
+                <InputNumber min={1} max={200} style={{ width: '100%' }} placeholder="e.g. 40" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="status" label="Status" rules={[{ required: true }]}>
+                <Select
+                  options={[
+                    { label: 'Active',   value: 'ACTIVE' },
+                    { label: 'Inactive', value: 'INACTIVE' },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+        </div>
+
+        <Typography.Text strong style={{ fontSize: 13 }}>Class Teacher</Typography.Text>
+        <p style={{ margin: '4px 0 12px', fontSize: 12, color: colors.muted }}>
+          Only active teachers can be assigned.
+        </p>
+        <Form.Item name="classTeacherId" label="Class Teacher">
+          <Select
+            allowClear
+            showSearch
+            placeholder="Select teacher"
+            filterOption={(input, option) =>
+              (option?.label as string ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={activeTeachers.map((t) => ({ label: `${t.name} — ${t.department}`, value: t.id }))}
+          />
+        </Form.Item>
+      </Form>
+    </Drawer>
+  )
+}
+
+// ─── CLASS DETAIL DRAWER ─────────────────────────────────────────────────────
+
+function ClassDetailDrawer({
+  schoolClass, sectionStore, canUpdate, canCreateSection,
+  onClose, onEdit, onAddSection, onViewSection,
+}: {
+  schoolClass: SchoolClass | null
+  sectionStore: SectionStore
+  canUpdate: boolean
+  canCreateSection: boolean
+  onClose: () => void
+  onEdit: (c: SchoolClass) => void
+  onAddSection: (c: SchoolClass) => void
+  onViewSection: (s: Section) => void
+}) {
+  if (!schoolClass) return null
+
+  const sections = sectionStore.sectionsByClass(schoolClass.id)
+  const totalCap = sections.reduce((sum, s) => sum + (s.capacity ?? 0), 0)
+
+  const sectionColumns: ColumnsType<Section> = [
+    {
+      title: 'Section',
+      key: 'section',
+      render: (_: unknown, s: Section) => (
+        <Space>
+          <Avatar size={28} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 12 }}>
+            {s.name}
+          </Avatar>
+          <span>Section {s.name}</span>
+        </Space>
+      ),
+    },
+    { title: 'Code',     dataIndex: 'code',     render: (v: string)        => <span style={{ fontFamily: 'monospace' }}>{v}</span> },
+    { title: 'Capacity', dataIndex: 'capacity', render: (v: number | null) => v ?? '—' },
+    { title: 'Status',   dataIndex: 'status',   render: (v: string)        => <StatusBadge status={v} /> },
+  ]
+
+  return (
+    <Drawer
+      title={
+        <Space>
+          <Avatar size={36} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 13 }}>
+            {initials(schoolClass.name)}
+          </Avatar>
+          <span>{schoolClass.name}</span>
+        </Space>
+      }
+      open={!!schoolClass}
+      onClose={onClose}
+      size={DRAWER.widthLg}
+      extra={
+        <Space>
+          {canCreateSection && (
+            <Button icon={<PlusOutlined />} onClick={() => onAddSection(schoolClass)}>
+              Add Section
+            </Button>
+          )}
+          {canUpdate && (
+            <Button type="primary" icon={<EditOutlined />} style={{ background: colors.primary }} onClick={() => onEdit(schoolClass)}>
+              Edit Class
+            </Button>
+          )}
+        </Space>
+      }
+    >
+      <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
+        {[
+          { label: 'Sections',       value: sections.length, icon: <AppstoreOutlined />, color: colors.primary, bg: colors.primaryLight },
+          { label: 'Total Capacity', value: totalCap || '—', icon: <TeamOutlined />,     color: colors.info,    bg: colors.infoLight },
+        ].map((k) => (
+          <Col key={k.label} span={12}>
+            <StatCard variant="compact" size="small" label={k.label} value={k.value} icon={k.icon} color={k.color} iconBg={k.bg} />
+          </Col>
+        ))}
+      </Row>
+
+      <Descriptions bordered size="small" column={2} style={{ marginBottom: 20 }}>
+        <Descriptions.Item label="Academic Year">
+          {schoolClass.academicYear?.name ?? '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="Status">
+          <StatusBadge status={schoolClass.status} />
+        </Descriptions.Item>
+        <Descriptions.Item label="Class Code">
+          <span style={{ fontFamily: 'monospace' }}>{schoolClass.code}</span>
+        </Descriptions.Item>
+        <Descriptions.Item label="Created">
+          {new Date(schoolClass.createdAt).toLocaleDateString()}
+        </Descriptions.Item>
+      </Descriptions>
+
+      <Typography.Title level={5} style={{ marginBottom: 12 }}>Sections</Typography.Title>
+
+      {sections.length === 0 ? (
+        <div style={{
+          padding: 32, textAlign: 'center',
+          background: colors.surfaceAlt, borderRadius: 8, border: `1px solid ${colors.border}`,
+        }}>
+          <Typography.Text type="secondary">No sections configured for {schoolClass.name}.</Typography.Text>
+          {canCreateSection && (
+            <div style={{ marginTop: 12 }}>
+              <Button type="primary" size="small" icon={<PlusOutlined />} style={{ background: colors.primary }}
+                onClick={() => onAddSection(schoolClass)}>
+                Add Section
+              </Button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <Table
+          rowKey="id"
+          columns={sectionColumns}
+          dataSource={sections}
+          size="small"
+          pagination={false}
+          onRow={(s) => ({ onClick: () => onViewSection(s), style: { cursor: 'pointer' } })}
+        />
+      )}
+    </Drawer>
+  )
+}
+
+// ─── SECTION DETAIL DRAWER ───────────────────────────────────────────────────
+
+function SectionDetailDrawer({ section, canUpdate, onClose, onEdit }: {
+  section: Section | null
+  sectionStore: SectionStore
+  canUpdate: boolean
+  onClose: () => void
+  onEdit: (s: Section) => void
+}) {
+  if (!section) return null
+
+  const teacher = section.classTeacherId
+    ? MOCK_TEACHERS.find((t) => t.id === section.classTeacherId)
+    : null
+
+  return (
+    <Drawer
+      title={
+        <Space>
+          <Avatar size={36} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 15 }}>
+            {section.name}
+          </Avatar>
+          <div>
+            <div>Section {section.name}</div>
+            <div style={{ fontSize: 12, color: colors.muted, fontWeight: 400 }}>
+              <span style={{ fontFamily: 'monospace' }}>{section.code}</span>
+            </div>
+          </div>
+        </Space>
+      }
+      open={!!section}
+      onClose={onClose}
+      size={DRAWER.widthLg}
+      extra={
+        canUpdate && (
+          <Button type="primary" icon={<EditOutlined />} style={{ background: colors.primary }} onClick={() => onEdit(section)}>
+            Edit Section
+          </Button>
+        )
+      }
+    >
+      <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
+        {[
+          { label: 'Capacity',        value: section.capacity ?? '—',
+            icon: <TeamOutlined />,   color: colors.info,    bg: colors.infoLight },
+          { label: 'Available Seats', value: section.capacity != null ? Math.max(0, section.capacity) : '—',
+            icon: <UserOutlined />,   color: colors.success, bg: colors.successLight },
+        ].map((k) => (
+          <Col key={k.label} span={12}>
+            <StatCard variant="compact" size="small" label={k.label} value={k.value} icon={k.icon} color={k.color} iconBg={k.bg} />
+          </Col>
+        ))}
+      </Row>
+
+      <Descriptions bordered size="small" column={2}>
+        <Descriptions.Item label="Section Code">
+          <span style={{ fontFamily: 'monospace' }}>{section.code}</span>
+        </Descriptions.Item>
+        <Descriptions.Item label="Status">
+          <StatusBadge status={section.status} />
+        </Descriptions.Item>
+        <Descriptions.Item label="Class Teacher" span={2}>
+          {teacher ? (
+            <Space>
+              <Avatar size={22} style={{ background: colors.primaryLight, color: colors.primary, fontSize: 10 }}>
+                {initials(teacher.name)}
+              </Avatar>
+              {teacher.name} — {teacher.department}
+            </Space>
+          ) : (
+            <span style={{ color: colors.muted }}>Not assigned</span>
+          )}
+        </Descriptions.Item>
+        <Descriptions.Item label="Created">
+          {new Date(section.createdAt).toLocaleDateString()}
+        </Descriptions.Item>
+      </Descriptions>
+    </Drawer>
+  )
+}

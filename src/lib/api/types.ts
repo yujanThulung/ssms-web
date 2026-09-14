@@ -33,3 +33,10 @@ export interface TokenPair{
     access_token: string
     refresh_token: string
 }
+
+export interface BaseEntity {
+    id: string
+    createdAt: string
+    updatedAt: string
+    deletedAt?: string | null
+}

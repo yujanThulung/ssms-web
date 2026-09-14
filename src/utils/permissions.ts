@@ -15,6 +15,7 @@ export const FEATURES = {
   ROLE: 'role',
   ACCOUNT: 'account',
   ACADEMIC_YEAR: 'academic_year',
+  CLASS_SECTION: 'class_section',
   SETTINGS: 'settings',
   DASHBOARD: 'dashboard',
 } as const
@@ -53,18 +54,17 @@ export function hasRole(user: AuthUser | null, ...roles: string[]): boolean {
 export function hasPermission(
   user: AuthUser | null,
   feature: FeatureType | string,
-  action: ActionType | string
+  action: ActionType | string,
 ): boolean {
-  if (!user) return false
+  if (!user) return false;
 
-  // Super Admin has universal bypass
-  if (isSuperAdmin(user)) return true
+  if (isSuperAdmin(user)) return true;
 
   return (
     user.permissions?.some(
       (p) =>
-        p.feature.toLowerCase() === feature.toLowerCase() &&
-        p.action.toLowerCase() === action.toLowerCase()
+        p?.feature === feature &&
+        p?.action === action,
     ) ?? false
-  )
+  );
 }

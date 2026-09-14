@@ -5,7 +5,8 @@ import {
   ShieldCheck,
   Settings,
   Users,
-  CalendarRange
+  CalendarRange,
+  BookOpen,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { FEATURES } from '../utils'
@@ -34,6 +35,7 @@ export const accounts: SidebarItem[] = [
 
 export const masterSetup: SidebarItem[] = [
   { title: 'Academic Session', url: '/academic-session', icon: CalendarRange, feature: FEATURES.ACADEMIC_YEAR },
+  { title: 'Classes & Sections', url: '/classes', icon: BookOpen, feature: FEATURES.CLASS_SECTION },
   { title: 'Permissions', url: '/permissions', icon: ShieldCheck, feature: 'role' },
 ]
 

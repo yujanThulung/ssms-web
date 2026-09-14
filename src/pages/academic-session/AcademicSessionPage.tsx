@@ -16,6 +16,8 @@ import {
     Typography,
 } from 'antd'
 import { NepaliDateRangePicker, type BsDateRange } from '../../components/nepali-calendar'
+import { StatCard } from '../../components/common/StatCard'
+import { StatusBadge, getStatusColor } from '../../components/common/StatusBadge'
 import type { ColumnsType } from 'antd/es/table'
 import type { MenuProps } from 'antd'
 import {
@@ -50,7 +52,7 @@ const { Title, Text } = Typography
 
 type SessionStatus = 'CURRENT' | 'UPCOMING' | 'ARCHIVED'
 
-interface AcademicSession {
+export interface AcademicSession {
     id: string
     createdAt: string
     updatedAt: string
@@ -68,17 +70,6 @@ interface AcademicYearSummary {
         name: string
     }
     upcommingSession: number
-}
-
-const statusTagColor = (status: SessionStatus) => {
-    switch (status) {
-        case 'CURRENT':
-            return 'success'
-        case 'UPCOMING':
-            return 'warning'
-        case 'ARCHIVED':
-            return 'default'
-    }
 }
 
 export default function AcademicSessionPage() {
@@ -289,11 +280,7 @@ export default function AcademicSessionPage() {
             title: 'Status',
             dataIndex: 'status',
             key: 'status',
-            render: (val: SessionStatus) => (
-                <Tag color={statusTagColor(val)} bordered={false}>
-                    {val}
-                </Tag>
-            ),
+            render: (val: SessionStatus) => <StatusBadge status={val} />,
         },
         {
             title: 'Actions',
@@ -394,103 +381,37 @@ export default function AcademicSessionPage() {
             {/* KPI Cards */}
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
                 <Col xs={24} sm={8}>
-                    <Card size="small" style={{ borderRadius: 8, borderColor: colors.border }}>
-                        <Space align="center">
-                            <div
-                                style={{
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 8,
-                                    backgroundColor: colors.primaryLight,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: colors.primary,
-                                    fontSize: 18,
-                                }}
-                            >
-                                <CalendarOutlined />
-                            </div>
-                            <div>
-                                <Text type="secondary" style={{ fontSize: 12 }}>
-                                    Total Sessions
-                                </Text>
-                                <div style={{ fontSize: 20, fontWeight: 600, color: colors.text, minHeight: 28, display: 'flex', alignItems: 'center' }}>
-                                    {isSummaryLoading ? (
-                                        <Skeleton.Input active size="small" style={{ width: 44, height: 20 }} />
-                                    ) : (
-                                        summary?.rotalSessions ?? 0
-                                    )}
-                                </div>
-                            </div>
-                        </Space>
-                    </Card>
+                    <StatCard
+                        variant="default"
+                        size="middle"
+                        label="Total Sessions"
+                        value={isSummaryLoading ? <Skeleton.Input active size="small" style={{ width: 44, height: 20 }} /> : (summary?.rotalSessions ?? 0)}
+                        icon={<CalendarOutlined />}
+                        color={colors.primary}
+                        iconBg={colors.primaryLight}
+                    />
                 </Col>
                 <Col xs={24} sm={8}>
-                    <Card size="small" style={{ borderRadius: 8, borderColor: colors.border }}>
-                        <Space align="center">
-                            <div
-                                style={{
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 8,
-                                    backgroundColor: colors.successLight,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: colors.success,
-                                    fontSize: 18,
-                                }}
-                            >
-                                <CheckCircleOutlined />
-                            </div>
-                            <div>
-                                <Text type="secondary" style={{ fontSize: 12 }}>
-                                    Current Session
-                                </Text>
-                                <div style={{ fontSize: 20, fontWeight: 600, color: colors.text, minHeight: 28, display: 'flex', alignItems: 'center' }}>
-                                    {isSummaryLoading ? (
-                                        <Skeleton.Input active size="small" style={{ width: 90, height: 20 }} />
-                                    ) : (
-                                        summary?.currentSession?.name ?? '—'
-                                    )}
-                                </div>
-                            </div>
-                        </Space>
-                    </Card>
+                    <StatCard
+                        variant="default"
+                        size="middle"
+                        label="Current Session"
+                        value={isSummaryLoading ? <Skeleton.Input active size="small" style={{ width: 90, height: 20 }} /> : (summary?.currentSession?.name ?? '—')}
+                        icon={<CheckCircleOutlined />}
+                        color={colors.success}
+                        iconBg={colors.successLight}
+                    />
                 </Col>
                 <Col xs={24} sm={8}>
-                    <Card size="small" style={{ borderRadius: 8, borderColor: colors.border }}>
-                        <Space align="center">
-                            <div
-                                style={{
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 8,
-                                    backgroundColor: colors.warningLight,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: colors.warning,
-                                    fontSize: 18,
-                                }}
-                            >
-                                <ClockCircleOutlined />
-                            </div>
-                            <div>
-                                <Text type="secondary" style={{ fontSize: 12 }}>
-                                    Upcoming
-                                </Text>
-                                <div style={{ fontSize: 20, fontWeight: 600, color: colors.text, minHeight: 28, display: 'flex', alignItems: 'center' }}>
-                                    {isSummaryLoading ? (
-                                        <Skeleton.Input active size="small" style={{ width: 44, height: 20 }} />
-                                    ) : (
-                                        summary?.upcommingSession ?? 0
-                                    )}
-                                </div>
-                            </div>
-                        </Space>
-                    </Card>
+                    <StatCard
+                        variant="default"
+                        size="middle"
+                        label="Upcoming"
+                        value={isSummaryLoading ? <Skeleton.Input active size="small" style={{ width: 44, height: 20 }} /> : (summary?.upcommingSession ?? 0)}
+                        icon={<ClockCircleOutlined />}
+                        color={colors.warning}
+                        iconBg={colors.warningLight}
+                    />
                 </Col>
             </Row>
 
@@ -581,7 +502,7 @@ export default function AcademicSessionPage() {
                                         .slice()
                                         .sort((a, b) => b.startDate.localeCompare(a.startDate))
                                         .map((s) => ({
-                                            color: statusTagColor(s.status),
+                                            color: getStatusColor(s.status),
                                             children: (
                                                 <span>
                                                     <strong>{s.name}</strong> — {s.status}
@@ -684,7 +605,7 @@ export default function AcademicSessionPage() {
                         <div>
                             <Text type="secondary">Status</Text>
                             <div style={{ marginTop: 4 }}>
-                                <Tag color={statusTagColor(viewing.status)}>{viewing.status}</Tag>
+                                <StatusBadge status={viewing.status} />
                             </div>
                         </div>
                     </Space>
