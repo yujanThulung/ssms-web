@@ -165,15 +165,15 @@ export const NepaliDateRangePicker: React.FC<NepaliDateRangePickerProps> = ({
         }
     }
 
-    const handleClear = (e: React.MouseEvent) => {
-        e.stopPropagation()
-        const emptyRange = { from: undefined, to: undefined }
-        if (!isControlled) {
-            setInternalRange(emptyRange)
-        }
-        onChange?.(emptyRange)
-        setTempStart(null)
-    }
+    // const handleClear = (e: React.MouseEvent) => {
+    //     e.stopPropagation()
+    //     const emptyRange = { from: undefined, to: undefined }
+    //     if (!isControlled) {
+    //         setInternalRange(emptyRange)
+    //     }
+    //     onChange?.(emptyRange)
+    //     setTempStart(null)
+    // }
 
     const handleClearFrom = (e: React.MouseEvent) => {
         e.stopPropagation()

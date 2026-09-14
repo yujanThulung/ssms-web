@@ -11,7 +11,6 @@ import {
     Row,
     Skeleton,
     Space,
-    Tag,
     Timeline,
     Typography,
 } from 'antd'

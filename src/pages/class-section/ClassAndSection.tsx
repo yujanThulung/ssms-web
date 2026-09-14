@@ -14,7 +14,6 @@ import client from '../../lib/api/client'
 import { colors, DRAWER, radius } from '../../lib/designTokens'
 import { usePermission } from '../../context/PermissionContext'
 import { FEATURES, ACTIONS } from '../../utils/permissions'
-import { appConfirm } from '../../components/common/AppConfirm'
 import { StatusBadge } from '../../components/common/StatusBadge'
 import { AppTable } from '../../components/common/AppTable'
 import { SearchAndFilter } from '../../components/common/SearchAndFilter'
@@ -219,7 +218,7 @@ export default function ClassAndSection() {
 //  CLASSES TAB 
 
 function ClassesTab({
-  canUpdate, canDelete, canCreateSection,
+  canUpdate,canCreateSection,
   onEdit, onView, onAddSection, onCountsChange, onAcademicYearChange,
 }: {
   canUpdate: boolean
@@ -231,7 +230,6 @@ function ClassesTab({
   onCountsChange: (counts: { total: number; active: number }) => void
   onAcademicYearChange: (id: string | undefined) => void
 }) {
-  const qc = useQueryClient()
 
   const [q, setQ] = useState('')
   const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({})
@@ -261,31 +259,28 @@ function ClassesTab({
   const rows = listResponse?.data ?? []
   const meta = listResponse?.meta
 
-  const invalidateClasses = () =>
-    qc.invalidateQueries({ predicate: classesQueryPredicate(academicYearId) })
-
   useEffect(() => {
     onCountsChange({ total: meta?.total ?? 0, active: rows.filter((c) => c.status === 'ACTIVE').length })
   }, [rows, meta?.total])
 
-  const handleDelete = (c: SchoolClass) => {
-    appConfirm({
-      title: `Delete ${c.name}?`,
-      content: 'This cannot be undone.',
-      okText: 'Delete',
-      okColor: 'danger',
-      cancelText: 'Cancel',
-      onOk: async () => {
-        try {
-          await client.delete(ENDPOINTS.CLASSES.DETAIL(c.id))
-          toast.success(`${c.name} deleted`)
-          invalidateClasses()
-        } catch (err: any) {
-          toast.error(err?.message || 'Failed to delete class')
-        }
-      },
-    })
-  }
+  // const handleDelete = (c: SchoolClass) => {
+  //   appConfirm({
+  //     title: `Delete ${c.name}?`,
+  //     content: 'This cannot be undone.',
+  //     okText: 'Delete',
+  //     okColor: 'danger',
+  //     cancelText: 'Cancel',
+  //     onOk: async () => {
+  //       try {
+  //         await client.delete(ENDPOINTS.CLASSES.DETAIL(c.id))
+  //         toast.success(`${c.name} deleted`)
+  //         invalidateClasses()
+  //       } catch (err: any) {
+  //         toast.error(err?.message || 'Failed to delete class')
+  //       }
+  //     },
+  //   })
+  // }
 
   const filterColumns = [
     { key: 'name', title: 'Class Name', isSearchable: true },
@@ -707,7 +702,7 @@ type SectionFormValues = {
   status: 'ACTIVE' | 'INACTIVE'
 }
 
-function SectionFormDrawer({ open, academicYearId, editing, onClose }: {
+function SectionFormDrawer({ open, editing, onClose }: {
   open: boolean
   academicYearId: string | undefined
   editing: Partial<Section> | null
