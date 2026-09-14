@@ -475,6 +475,7 @@ function ClassesTab({
     {
       title: "Code",
       dataIndex: "code",
+      sorter: true,
       render: (v: string) => (
         <span style={{ fontFamily: "monospace" }}>{v}</span>
       ),
@@ -492,6 +493,7 @@ function ClassesTab({
     {
       title: "Created",
       dataIndex: "createdAt",
+      sorter: true,
       render: (v: string) => (
         <span style={{ fontFamily: "monospace", fontSize: 12 }}>
           {new Date(v).toLocaleDateString()}
@@ -585,9 +587,13 @@ function ClassesTab({
           onChange={(pagination, _filters, sorter: any) => {
             setPage(pagination.current || 1);
             setLimit(pagination.pageSize || 10);
-            if (sorter?.field) {
-              setSortBy(sorter.field);
-              setSortOrder(sorter.order === "ascend" ? "ASC" : "DESC");
+            const s = Array.isArray(sorter) ? sorter[0] : sorter;
+            if (s?.field && s?.order) {
+              setSortBy(s.field as string);
+              setSortOrder(s.order === "ascend" ? "ASC" : "DESC");
+            } else {
+              setSortBy("name");
+              setSortOrder("DESC");
             }
           }}
           pagination={{
@@ -690,6 +696,7 @@ function SectionsTab({
     {
       title: "Section",
       key: "section",
+      dataIndex: "name",
       sorter: true,
       render: (_: unknown, s: Section) => (
         <Space>
@@ -711,6 +718,7 @@ function SectionsTab({
     {
       title: "Code",
       dataIndex: "code",
+      sorter: true,
       render: (v: string) => (
         <span style={{ fontFamily: "monospace" }}>{v}</span>
       ),
@@ -732,6 +740,16 @@ function SectionsTab({
       dataIndex: "status",
       width: 110,
       render: (v: string) => <StatusBadge status={v} />,
+    },
+    {
+      title: "Created",
+      dataIndex: "createdAt",
+      sorter: true,
+      render: (v: string) => (
+        <span style={{ fontFamily: "monospace", fontSize: 12 }}>
+          {new Date(v).toLocaleDateString()}
+        </span>
+      ),
     },
     {
       title: "Actions",
@@ -814,9 +832,13 @@ function SectionsTab({
           onChange={(pagination, _filters, sorter: any) => {
             setPage(pagination.current || 1);
             setLimit(pagination.pageSize || 10);
-            if (sorter?.field) {
-              setSortBy(sorter.field);
-              setSortOrder(sorter.order === "ascend" ? "ASC" : "DESC");
+            const s = Array.isArray(sorter) ? sorter[0] : sorter;
+            if (s?.field && s?.order) {
+              setSortBy(s.field as string);
+              setSortOrder(s.order === "ascend" ? "ASC" : "DESC");
+            } else {
+              setSortBy("name");
+              setSortOrder("ASC");
             }
           }}
           pagination={{
@@ -1320,6 +1342,7 @@ function ClassDetailDrawer({
     {
       title: "Code",
       dataIndex: "code",
+      sorter: true,
       render: (v: string) => (
         <span style={{ fontFamily: "monospace" }}>{v}</span>
       ),
