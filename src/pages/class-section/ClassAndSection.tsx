@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Table, Drawer, Button, Space, Select,
   Form, InputNumber, Row, Col, Descriptions, Avatar, Tabs, Typography, Input,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
-  PlusOutlined, EditOutlined, EyeOutlined, StopOutlined,
-  DeleteOutlined, BookOutlined, TeamOutlined,
-  UserOutlined, AppstoreOutlined,
+  PlusOutlined, EditOutlined, EyeOutlined,
+  BookOutlined, TeamOutlined, UserOutlined, AppstoreOutlined,
 } from '@ant-design/icons'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
@@ -24,18 +23,27 @@ import { ENDPOINTS } from '../../lib/api/endpoints'
 import { useGet } from '../../lib/api/hooks/useGet'
 import type { ApiPaginatedResponse, ApiResponse } from '../../lib/api/types'
 import type { SchoolClass, Section, AcademicYear } from './types'
-import { MOCK_SECTIONS, MOCK_TEACHERS } from './mockData'
+import { MOCK_TEACHERS } from './mockData'
 import { TableSkeleton } from '../../components/skeleton'
 
 const { Title, Text } = Typography
 
-//  Helpers 
+// ─── Helpers 
 
 function initials(name: string) {
   return name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
 }
 
-/** Invalidates all /classes cache keys, optionally scoped to an academicYearId */
+function sectionsQueryPredicate(classId?: string) {
+  return (query: { queryKey: readonly unknown[] }) => {
+    const key = query.queryKey[0]
+    if (typeof key !== 'string') return false
+    if (!key.startsWith(ENDPOINTS.SECTIONS.BASE)) return false
+    if (classId) return key.includes(classId)
+    return true
+  }
+}
+
 function classesQueryPredicate(academicYearId?: string) {
   return (query: { queryKey: readonly unknown[] }) => {
     const key = query.queryKey[0]
@@ -46,47 +54,32 @@ function classesQueryPredicate(academicYearId?: string) {
   }
 }
 
-//  I───n-memory store for sections (swap with sections API later) 
+// ─── Mock student data (replace when student module is ready) ─────────────────
 
-function useSectionStore() {
-  const [sections, setSections] = useState<Section[]>(MOCK_SECTIONS)
-
-  return {
-    sections,
-    sectionsByClass: (cid: string) => sections.filter((s) => s.classId === cid),
-
-    addSection: (s: Omit<Section, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>) =>
-      setSections((prev) => [
-        ...prev,
-        {
-          ...s,
-          id: `sec-${Date.now()}`,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          deletedAt: null,
-        },
-      ]),
-
-    updateSection: (id: string, patch: Partial<Section>) =>
-      setSections((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s))),
-
-    removeSection: (id: string) =>
-      setSections((prev) => prev.filter((s) => s.id !== id)),
-  }
+interface MockStudent {
+  id: string
+  name: string
+  admissionNo: string
+  gender: string
+  phone: string
+  status: 'ACTIVE' | 'INACTIVE'
 }
 
-type SectionStore = ReturnType<typeof useSectionStore>
+const MOCK_STUDENTS: MockStudent[] = [
+  { id: 'stu-1', name: 'Aarav Sharma',    admissionNo: 'ADM-001', gender: 'Male',   phone: '9841000001', status: 'ACTIVE' },
+  { id: 'stu-2', name: 'Priya Thapa',     admissionNo: 'ADM-002', gender: 'Female', phone: '9841000002', status: 'ACTIVE' },
+  { id: 'stu-3', name: 'Rohan Adhikari',  admissionNo: 'ADM-003', gender: 'Male',   phone: '9841000003', status: 'ACTIVE' },
+  { id: 'stu-4', name: 'Sita Rai',        admissionNo: 'ADM-004', gender: 'Female', phone: '9841000004', status: 'INACTIVE' },
+]
 
-//  MAIN PAGE 
+//  MAIN PAGE
 
 export default function ClassAndSection() {
   const { can } = usePermission()
-  const canCreate = can(FEATURES.CLASS_SECTION, ACTIONS.CREATE)
-  const canUpdate = can(FEATURES.CLASS_SECTION, ACTIONS.UPDATE)
-  const canDelete = can(FEATURES.CLASS_SECTION, ACTIONS.DELETE)
+  const canCreate        = can(FEATURES.CLASS_SECTION, ACTIONS.CREATE)
+  const canUpdate        = can(FEATURES.CLASS_SECTION, ACTIONS.UPDATE)
+  const canDelete        = can(FEATURES.CLASS_SECTION, ACTIONS.DELETE)
   const canCreateSection = can(FEATURES.CLASS_SECTION, ACTIONS.CREATE)
-
-  const sectionStore = useSectionStore()
 
   const [activeTab, setActiveTab] = useState('classes')
   const [classDrawer, setClassDrawer] = useState(false)
@@ -96,20 +89,15 @@ export default function ClassAndSection() {
   const [viewClass, setViewClass] = useState<SchoolClass | null>(null)
   const [viewSection, setViewSection] = useState<Section | null>(null)
 
-  // KPI counts bubbled up from ClassesTab
   const [classCounts, setClassCounts] = useState({ total: 0, active: 0 })
-  // Selected academic year bubbled up from ClassesTab (for drawers)
+  const [sectionCounts, setSectionCounts] = useState({ total: 0, active: 0 })
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>(undefined)
 
-  const activeSections = sectionStore.sections.filter((s) => s.status === 'ACTIVE').length
-  const totalCapacity = sectionStore.sections.reduce((sum, s) => sum + (s.capacity ?? 0), 0)
-
   const kpiCards = [
-    { icon: <BookOutlined />,     label: 'Total Classes',   value: classCounts.total,            color: colors.primary, bg: colors.primaryLight },
-    { icon: <AppstoreOutlined />, label: 'Active Classes',  value: classCounts.active,           color: colors.success, bg: colors.successLight },
-    { icon: <TeamOutlined />,     label: 'Total Sections',  value: sectionStore.sections.length, color: colors.info,    bg: colors.infoLight },
-    { icon: <AppstoreOutlined />, label: 'Active Sections', value: activeSections,               color: colors.success, bg: colors.successLight },
-    { icon: <UserOutlined />,     label: 'Total Capacity',  value: totalCapacity || '—',         color: colors.warning, bg: colors.warningLight },
+    { icon: <BookOutlined />,     label: 'Total Classes',   value: classCounts.total,   color: colors.primary, bg: colors.primaryLight },
+    { icon: <AppstoreOutlined />, label: 'Active Classes',  value: classCounts.active,  color: colors.success, bg: colors.successLight },
+    { icon: <TeamOutlined />,     label: 'Total Sections',  value: sectionCounts.total, color: colors.info,    bg: colors.infoLight },
+    { icon: <AppstoreOutlined />, label: 'Active Sections', value: sectionCounts.active, color: colors.success, bg: colors.successLight },
   ]
 
   const openAddClass   = () => { setEditingClass(null); setClassDrawer(true) }
@@ -170,7 +158,6 @@ export default function ClassAndSection() {
             label: 'Classes',
             children: (
               <ClassesTab
-                sectionStore={sectionStore}
                 canUpdate={canUpdate}
                 canDelete={canDelete}
                 canCreateSection={canCreateSection}
@@ -187,10 +174,10 @@ export default function ClassAndSection() {
             label: 'Sections',
             children: (
               <SectionsTab
-                sectionStore={sectionStore}
                 canUpdate={canUpdate}
                 onEdit={(s) => { setEditingSection(s); setSectionDrawer(true) }}
                 onView={(s) => setViewSection(s)}
+                onCountsChange={setSectionCounts}
               />
             ),
           },
@@ -208,12 +195,10 @@ export default function ClassAndSection() {
         open={sectionDrawer}
         academicYearId={selectedAcademicYearId}
         editing={editingSection}
-        sectionStore={sectionStore}
         onClose={() => { setSectionDrawer(false); setEditingSection(null) }}
       />
       <ClassDetailDrawer
         schoolClass={viewClass}
-        sectionStore={sectionStore}
         canUpdate={canUpdate}
         canCreateSection={canCreateSection}
         onClose={() => setViewClass(null)}
@@ -223,7 +208,6 @@ export default function ClassAndSection() {
       />
       <SectionDetailDrawer
         section={viewSection}
-        sectionStore={sectionStore}
         canUpdate={canUpdate}
         onClose={() => setViewSection(null)}
         onEdit={(s) => { setViewSection(null); setEditingSection(s); setSectionDrawer(true) }}
@@ -235,10 +219,9 @@ export default function ClassAndSection() {
 //  CLASSES TAB 
 
 function ClassesTab({
-  sectionStore, canUpdate, canDelete, canCreateSection,
+  canUpdate, canDelete, canCreateSection,
   onEdit, onView, onAddSection, onCountsChange, onAcademicYearChange,
 }: {
-  sectionStore: SectionStore
   canUpdate: boolean
   canDelete: boolean
   canCreateSection: boolean
@@ -257,33 +240,23 @@ function ClassesTab({
   const [sortBy, setSortBy] = useState('name')
   const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC')
 
-  const statusFilter      = filterValues['status']
-  const academicYearId    = filterValues['academicYearId']
+  const statusFilter   = filterValues['status']
+  const academicYearId = filterValues['academicYearId']
 
-  // Fetch academic years for the filter dropdown — runs once, no waterfall
   const { data: academicYearsResponse } = useGet<ApiPaginatedResponse<AcademicYear>>(
     `${ENDPOINTS.ACADEMIC_YEARS.LIST}?limit=50&sortBy=startDate&sortOrder=DESC`,
   )
   const academicYears = academicYearsResponse?.data ?? []
 
-  // Keep parent informed about current academicYearId (for drawers)
-  useEffect(() => {
-    onAcademicYearChange(academicYearId)
-  }, [academicYearId])
+  useEffect(() => { onAcademicYearChange(academicYearId) }, [academicYearId])
 
-  const queryParams = new URLSearchParams({
-    page: page.toString(),
-    limit: limit.toString(),
-    sortBy,
-    sortOrder,
-  })
-  if (q) queryParams.append('search', q)
-  if (statusFilter) queryParams.append('status', statusFilter)
+  const queryParams = new URLSearchParams({ page: page.toString(), limit: limit.toString(), sortBy, sortOrder })
+  if (q)             queryParams.append('search', q)
+  if (statusFilter)  queryParams.append('status', statusFilter)
   if (academicYearId) queryParams.append('academicYearId', academicYearId)
 
   const queryKey = `${ENDPOINTS.CLASSES.BASE}?${queryParams.toString()}`
-
-  const { data: listResponse, isLoading: isTableLoading, isFetching } = useGet<ApiPaginatedResponse<SchoolClass>>(queryKey)
+  const { data: listResponse, isLoading, isFetching } = useGet<ApiPaginatedResponse<SchoolClass>>(queryKey)
 
   const rows = listResponse?.data ?? []
   const meta = listResponse?.meta
@@ -291,23 +264,14 @@ function ClassesTab({
   const invalidateClasses = () =>
     qc.invalidateQueries({ predicate: classesQueryPredicate(academicYearId) })
 
-  // Bubble counts to parent KPI cards
   useEffect(() => {
-    onCountsChange({
-      total: meta?.total ?? 0,
-      active: rows.filter((c) => c.status === 'ACTIVE').length,
-    })
+    onCountsChange({ total: meta?.total ?? 0, active: rows.filter((c) => c.status === 'ACTIVE').length })
   }, [rows, meta?.total])
 
-
-
   const handleDelete = (c: SchoolClass) => {
-    const sectionCount = sectionStore.sectionsByClass(c.id).length
     appConfirm({
       title: `Delete ${c.name}?`,
-      content: sectionCount > 0
-        ? `This will also delete ${sectionCount} section(s). This cannot be undone.`
-        : 'This cannot be undone.',
+      content: 'This cannot be undone.',
       okText: 'Delete',
       okColor: 'danger',
       cancelText: 'Cancel',
@@ -379,35 +343,28 @@ function ClassesTab({
     {
       title: 'Created',
       dataIndex: 'createdAt',
-      render: (v: string) => (
-        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>
-          {new Date(v).toLocaleDateString()}
-        </span>
-      ),
+      render: (v: string) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{new Date(v).toLocaleDateString()}</span>,
     },
     {
       title: 'Actions',
       key: 'actions',
       fixed: 'right',
-      width: 200,
+      width: 120,
       align: 'center',
       render: (_: unknown, c: SchoolClass) => (
         <Space size={6} onClick={(e) => e.stopPropagation()}>
-          <Button
-            type="default" size="small" icon={<EyeOutlined />} title="View Details"
+          <Button type="default" size="small" icon={<EyeOutlined />} title="View Details"
             onClick={() => onView(c)}
             style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
           />
           {canCreateSection && (
-            <Button
-              type="default" size="small" icon={<PlusOutlined />} title="Add Section"
+            <Button type="default" size="small" icon={<PlusOutlined />} title="Add Section"
               onClick={() => onAddSection(c)}
               style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
             />
           )}
           {canUpdate && (
-            <Button
-              type="default" size="small" icon={<EditOutlined />} title="Edit"
+            <Button type="default" size="small" icon={<EditOutlined />} title="Edit"
               onClick={() => onEdit(c)}
               style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
             />
@@ -425,19 +382,10 @@ function ClassesTab({
         onSearchChange={setQ}
         debounceMs={300}
         filterValues={filterValues}
-        onFilterChange={(key, value) => {
-          setFilterValues((prev) => ({ ...prev, [key]: value }))
-          setPage(1)
-        }}
+        onFilterChange={(key, value) => { setFilterValues((prev) => ({ ...prev, [key]: value })); setPage(1) }}
       />
-      {isTableLoading ? (
-        <div style={{
-          backgroundColor: colors.surface,
-          border: `1px solid ${colors.border}`,
-          borderRadius: 12,
-          overflow: 'hidden',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-        }}>
+      {isLoading ? (
+        <div style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 12, overflow: 'hidden' }}>
           <TableSkeleton rows={Math.min(limit, 5)} columns={5} />
         </div>
       ) : (
@@ -450,17 +398,9 @@ function ClassesTab({
           onChange={(pagination, _filters, sorter: any) => {
             setPage(pagination.current || 1)
             setLimit(pagination.pageSize || 10)
-            if (sorter?.field) {
-              setSortBy(sorter.field)
-              setSortOrder(sorter.order === 'ascend' ? 'ASC' : 'DESC')
-            }
+            if (sorter?.field) { setSortBy(sorter.field); setSortOrder(sorter.order === 'ascend' ? 'ASC' : 'DESC') }
           }}
-          pagination={{
-            current: page,
-            pageSize: limit,
-            total: meta?.total ?? 0,
-            showSizeChanger: true,
-          }}
+          pagination={{ current: page, pageSize: limit, total: meta?.total ?? 0, showSizeChanger: true }}
           scroll={{ x: 800 }}
           locale={{ emptyText: 'No classes found.' }}
         />
@@ -469,38 +409,75 @@ function ClassesTab({
   )
 }
 
-// ─── SECTIONS TAB ────────────────────────────────────────────────────────────
+// SECTIONS TAB 
 
-function SectionsTab({ sectionStore, canUpdate, onEdit, onView }: {
-  sectionStore: SectionStore
+function SectionsTab({
+  canUpdate, onEdit, onView, onCountsChange,
+}: {
   canUpdate: boolean
   onEdit: (s: Section) => void
   onView: (s: Section) => void
+  onCountsChange: (counts: { total: number; active: number }) => void
 }) {
   const [q, setQ] = useState('')
   const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({})
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [sortBy, setSortBy] = useState('name')
+  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('ASC')
 
-  const classFilter  = filterValues['classId']
   const statusFilter = filterValues['status']
+  const classId      = filterValues['classId']
 
-  const teacherById = useMemo(
-    () => Object.fromEntries(MOCK_TEACHERS.map((t) => [t.id, t])),
-    [],
+  // Academic years for classId filter — need classes list per year
+  const { data: academicYearsResponse } = useGet<ApiPaginatedResponse<AcademicYear>>(
+    `${ENDPOINTS.ACADEMIC_YEARS.LIST}?limit=50&sortBy=startDate&sortOrder=DESC`,
   )
+  const academicYears = academicYearsResponse?.data ?? []
 
-  const filtered = useMemo(() =>
-    sectionStore.sections.filter((s) => {
-      if (statusFilter && s.status !== statusFilter) return false
-      if (classFilter  && s.classId !== classFilter)  return false
-      if (q) {
-        const ql = q.toLowerCase()
-        return s.name.toLowerCase().includes(ql) || s.code.toLowerCase().includes(ql)
-      }
-      return true
-    }), [sectionStore.sections, q, classFilter, statusFilter])
+  const filterAcademicYearId = filterValues['academicYearId']
+
+  // Classes for the classId filter dropdown
+  const { data: classesResponse } = useGet<ApiPaginatedResponse<SchoolClass>>(
+    `${ENDPOINTS.CLASSES.BASE}?limit=100&status=ACTIVE${filterAcademicYearId ? `&academicYearId=${filterAcademicYearId}` : ''}`,
+    Boolean(filterAcademicYearId),
+  )
+  const classesForFilter = classesResponse?.data ?? []
+
+  const queryParams = new URLSearchParams({ page: page.toString(), limit: limit.toString(), sortBy, sortOrder })
+  if (q)            queryParams.append('search', q)
+  if (statusFilter) queryParams.append('status', statusFilter)
+  if (classId)      queryParams.append('classId', classId)
+
+  const queryKey = `${ENDPOINTS.SECTIONS.BASE}?${queryParams.toString()}`
+  const { data: listResponse, isLoading, isFetching } = useGet<ApiPaginatedResponse<Section>>(queryKey)
+
+  const rows = listResponse?.data ?? []
+  const meta = listResponse?.meta
+
+  useEffect(() => {
+    onCountsChange({ total: meta?.total ?? 0, active: rows.filter((s) => s.status === 'ACTIVE').length })
+  }, [rows, meta?.total])
 
   const filterColumns = [
     { key: 'name', title: 'Section', isSearchable: true },
+    {
+      key: 'academicYearId',
+      title: 'Academic Year',
+      isFilterable: true,
+      filterWidth: 200,
+      filterOptions: academicYears.map((y) => ({
+        label: `${y.name}${y.status === 'CURRENT' ? ' (Current)' : ''}`,
+        value: y.id,
+      })),
+    },
+    {
+      key: 'classId',
+      title: 'Class',
+      isFilterable: true,
+      filterWidth: 180,
+      filterOptions: classesForFilter.map((c) => ({ label: c.name, value: c.id })),
+    },
     {
       key: 'status',
       title: 'Status',
@@ -517,7 +494,7 @@ function SectionsTab({ sectionStore, canUpdate, onEdit, onView }: {
     {
       title: 'Section',
       key: 'section',
-      sorter: (a, b) => a.name.localeCompare(b.name),
+      sorter: true,
       render: (_: unknown, s: Section) => (
         <Space>
           <Avatar size={32} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 13 }}>
@@ -533,12 +510,9 @@ function SectionsTab({ sectionStore, canUpdate, onEdit, onView }: {
       render: (v: string) => <span style={{ fontFamily: 'monospace' }}>{v}</span>,
     },
     {
-      title: 'Class Teacher',
-      key: 'teacher',
-      render: (_: unknown, s: Section) =>
-        s.classTeacherId
-          ? (teacherById[s.classTeacherId]?.name ?? '—')
-          : <span style={{ color: colors.muted }}>Not assigned</span>,
+      title: 'Class',
+      key: 'class',
+      render: (_: unknown, s: Section) => s.class?.name ?? '—',
     },
     {
       title: 'Capacity',
@@ -556,12 +530,19 @@ function SectionsTab({ sectionStore, canUpdate, onEdit, onView }: {
       title: 'Actions',
       key: 'actions',
       fixed: 'right',
-      width: 80,
+      width: 90,
+      align: 'center',
       render: (_: unknown, s: Section) => (
-        <Space size={4} onClick={(e) => e.stopPropagation()}>
-          <Button type="text" size="small" icon={<EyeOutlined />} title="View Details" onClick={() => onView(s)} />
+        <Space size={6} onClick={(e) => e.stopPropagation()}>
+          <Button type="default" size="small" icon={<EyeOutlined />} title="View Details"
+            onClick={() => onView(s)}
+            style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
+          />
           {canUpdate && (
-            <Button type="text" size="small" icon={<EditOutlined />} title="Edit" onClick={() => onEdit(s)} />
+            <Button type="default" size="small" icon={<EditOutlined />} title="Edit"
+              onClick={() => onEdit(s)}
+              style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
+            />
           )}
         </Space>
       ),
@@ -576,21 +557,42 @@ function SectionsTab({ sectionStore, canUpdate, onEdit, onView }: {
         onSearchChange={setQ}
         debounceMs={300}
         filterValues={filterValues}
-        onFilterChange={(key, value) => setFilterValues((prev) => ({ ...prev, [key]: value }))}
+        onFilterChange={(key, value) => {
+          // Clearing academic year should also clear classId
+          if (key === 'academicYearId') {
+            setFilterValues((prev) => ({ ...prev, academicYearId: value, classId: undefined }))
+          } else {
+            setFilterValues((prev) => ({ ...prev, [key]: value }))
+          }
+          setPage(1)
+        }}
       />
-      <AppTable<Section>
-        rowKey="id"
-        columns={columns}
-        dataSource={filtered}
-        onRowClick={(s) => onView(s)}
-        scroll={{ x: 900 }}
-        locale={{ emptyText: 'No sections configured.' }}
-      />
+      {isLoading ? (
+        <div style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 12, overflow: 'hidden' }}>
+          <TableSkeleton rows={Math.min(limit, 5)} columns={5} />
+        </div>
+      ) : (
+        <AppTable<Section>
+          rowKey="id"
+          columns={columns}
+          dataSource={rows}
+          loading={isFetching}
+          onRowClick={(s) => onView(s)}
+          onChange={(pagination, _filters, sorter: any) => {
+            setPage(pagination.current || 1)
+            setLimit(pagination.pageSize || 10)
+            if (sorter?.field) { setSortBy(sorter.field); setSortOrder(sorter.order === 'ascend' ? 'ASC' : 'DESC') }
+          }}
+          pagination={{ current: page, pageSize: limit, total: meta?.total ?? 0, showSizeChanger: true }}
+          scroll={{ x: 800 }}
+          locale={{ emptyText: 'No sections found.' }}
+        />
+      )}
     </>
   )
 }
 
-// ─── CLASS FORM DRAWER ───────────────────────────────────────────────────────
+//  CLASS FORM DRAWER 
 
 type ClassFormValues = {
   name: string
@@ -609,7 +611,6 @@ function ClassFormDrawer({ open, academicYearId, editing, onClose }: {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const isEditing = Boolean(editing)
 
-  // Academic years for the drawer's select
   const { data: academicYearsResponse } = useGet<ApiPaginatedResponse<AcademicYear>>(
     `${ENDPOINTS.ACADEMIC_YEARS.LIST}?limit=50&sortBy=startDate&sortOrder=DESC`,
   )
@@ -620,18 +621,10 @@ function ClassFormDrawer({ open, academicYearId, editing, onClose }: {
 
   const onOpen = () => {
     if (editing) {
-      form.setFieldsValue({
-        name: editing.name,
-        status: editing.status,
-        academicYearId: editing.academicYearId,
-      })
+      form.setFieldsValue({ name: editing.name, status: editing.status, academicYearId: editing.academicYearId })
     } else {
       form.resetFields()
-      form.setFieldsValue({
-        status: 'ACTIVE',
-        // Pre-fill with whatever the user currently has filtered, if any
-        ...(academicYearId ? { academicYearId } : {}),
-      })
+      form.setFieldsValue({ status: 'ACTIVE', ...(academicYearId ? { academicYearId } : {}) })
     }
   }
 
@@ -639,13 +632,7 @@ function ClassFormDrawer({ open, academicYearId, editing, onClose }: {
     try {
       const values = await form.validateFields()
       setIsSubmitting(true)
-
-      const payload = {
-        name: values.name.trim(),
-        status: values.status,
-        academicYearId: values.academicYearId,
-      }
-
+      const payload = { name: values.name.trim(), status: values.status, academicYearId: values.academicYearId }
       if (isEditing && editing) {
         await client.patch<ApiResponse<SchoolClass>>(ENDPOINTS.CLASSES.DETAIL(editing.id), payload)
         toast.success(`${values.name} updated`)
@@ -653,7 +640,6 @@ function ClassFormDrawer({ open, academicYearId, editing, onClose }: {
         await client.post<ApiResponse<SchoolClass>>(ENDPOINTS.CLASSES.BASE, payload)
         toast.success(`${values.name} created`)
       }
-
       invalidateClasses()
       form.resetFields()
       onClose()
@@ -675,12 +661,7 @@ function ClassFormDrawer({ open, academicYearId, editing, onClose }: {
       extra={
         <Space>
           <Button onClick={() => { form.resetFields(); onClose() }}>Cancel</Button>
-          <Button
-            type="primary"
-            style={{ background: colors.primary }}
-            loading={isSubmitting}
-            onClick={onSubmit}
-          >
+          <Button type="primary" style={{ background: colors.primary }} loading={isSubmitting} onClick={onSubmit}>
             {isEditing ? 'Save Changes' : 'Create Class'}
           </Button>
         </Space>
@@ -688,25 +669,15 @@ function ClassFormDrawer({ open, academicYearId, editing, onClose }: {
     >
       <Form form={form} layout="vertical" requiredMark="optional">
         <Typography.Text strong style={{ fontSize: 13 }}>Class Information</Typography.Text>
-        <p style={{ margin: '4px 0 16px', fontSize: 12, color: colors.muted }}>
-          Basic details that identify this class.
-        </p>
+        <p style={{ margin: '4px 0 16px', fontSize: 12, color: colors.muted }}>Basic details that identify this class.</p>
 
-        <Form.Item
-          name="name"
-          label="Class Name"
-          rules={[
-            { required: true, message: 'Class name is required' },
-            { max: 100, message: 'Max 100 characters' },
-          ]}
-        >
+        <Form.Item name="name" label="Class Name"
+          rules={[{ required: true, message: 'Class name is required' }, { max: 100, message: 'Max 100 characters' }]}>
           <Input placeholder="e.g. Class 1, Grade 10, Nursery" />
         </Form.Item>
-        <Form.Item
-          name="academicYearId"
-          label="Academic Year"
-          rules={[{ required: true, message: 'Academic year is required' }]}
-        >
+
+        <Form.Item name="academicYearId" label="Academic Year"
+          rules={[{ required: true, message: 'Academic year is required' }]}>
           <Select
             placeholder="Select academic year"
             options={academicYears.map((y) => ({
@@ -719,12 +690,7 @@ function ClassFormDrawer({ open, academicYearId, editing, onClose }: {
         <Typography.Text strong style={{ fontSize: 13 }}>Configuration</Typography.Text>
         <div style={{ marginTop: 12 }}>
           <Form.Item name="status" label="Status" rules={[{ required: true }]}>
-            <Select
-              options={[
-                { label: 'Active',   value: 'ACTIVE' },
-                { label: 'Inactive', value: 'INACTIVE' },
-              ]}
-            />
+            <Select options={[{ label: 'Active', value: 'ACTIVE' }, { label: 'Inactive', value: 'INACTIVE' }]} />
           </Form.Item>
         </div>
       </Form>
@@ -732,43 +698,69 @@ function ClassFormDrawer({ open, academicYearId, editing, onClose }: {
   )
 }
 
-// ─── SECTION FORM DRAWER ─────────────────────────────────────────────────────
+//  SECTION FORM DRAWER 
 
 type SectionFormValues = {
   classId: string
   name: string
-  code: string
   capacity: number | null
-  classTeacherId: string | null
   status: 'ACTIVE' | 'INACTIVE'
 }
 
-function SectionFormDrawer({ open, academicYearId, editing, sectionStore, onClose }: {
+function SectionFormDrawer({ open, academicYearId, editing, onClose }: {
   open: boolean
   academicYearId: string | undefined
   editing: Partial<Section> | null
-  sectionStore: SectionStore
   onClose: () => void
 }) {
+  const qc = useQueryClient()
   const [form] = Form.useForm<SectionFormValues>()
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const isEditing = Boolean(editing?.id)
-  const activeTeachers = MOCK_TEACHERS.filter((t) => t.status === 'Active')
 
-  // Load active classes only when an academic year is selected
+  // Fetch all active classes once — response includes nested academicYear
   const { data: classesResponse } = useGet<ApiPaginatedResponse<SchoolClass>>(
-    `${ENDPOINTS.CLASSES.BASE}?limit=100&academicYearId=${academicYearId}&status=ACTIVE`,
-    Boolean(academicYearId),
+    `${ENDPOINTS.CLASSES.BASE}?limit=100&status=ACTIVE`,
   )
-  const activeClasses = classesResponse?.data ?? []
+  const allActiveClasses = classesResponse?.data ?? []
+
+  // Derive unique academic years from the classes response
+  const academicYearsFromClasses = allActiveClasses.reduce<AcademicYear[]>((acc, c) => {
+    if (c.academicYear && !acc.find((y) => y.id === c.academicYear!.id)) {
+      acc.push(c.academicYear)
+    }
+    return acc
+  }, [])
+
+  // Default to CURRENT year; user can change
+  const [selectedYearId, setSelectedYearId] = useState<string | undefined>(undefined)
+
+  // Derive the effective year: use what user picked, else the CURRENT one from the list
+  const currentYear = academicYearsFromClasses.find((y) => y.status === 'CURRENT')
+  const effectiveYearId = selectedYearId ?? currentYear?.id ?? academicYearsFromClasses[0]?.id
+
+  // Classes filtered by selected academic year
+  const activeClasses = allActiveClasses.filter((c) => c.academicYear?.id === effectiveYearId)
+
+  // When opened from a class row, fetch that class to show its name
+  const presetClassId = !isEditing ? editing?.classId : undefined
+  const { data: presetClassResponse } = useGet<ApiResponse<SchoolClass>>(
+    ENDPOINTS.CLASSES.DETAIL(presetClassId ?? ''),
+    Boolean(presetClassId),
+  )
+  const presetClass = presetClassResponse?.data
+
+  const invalidateSections = () =>
+    qc.invalidateQueries({ predicate: sectionsQueryPredicate(editing?.classId) })
 
   const onOpen = () => {
+    setSelectedYearId(undefined) // reset to default (CURRENT) each time drawer opens
     if (editing?.id) {
       form.setFieldsValue({
-        classId:        editing.classId,
-        name:           editing.name,
-        capacity:       editing.capacity ?? null,
-        classTeacherId: editing.classTeacherId ?? null,
-        status:         editing.status ?? 'ACTIVE',
+        classId:  editing.classId,
+        name:     editing.name,
+        capacity: editing.capacity ?? null,
+        status:   editing.status ?? 'ACTIVE',
       })
     } else if (editing?.classId) {
       form.resetFields()
@@ -780,33 +772,30 @@ function SectionFormDrawer({ open, academicYearId, editing, sectionStore, onClos
   }
 
   const onSubmit = async () => {
-    const values = await form.validateFields()
-    const existing = sectionStore.sectionsByClass(values.classId)
+    try {
+      const values = await form.validateFields()
+      setIsSubmitting(true)
 
-    const nameDup = existing.find(
-      (s) => s.name.trim().toLowerCase() === values.name.trim().toLowerCase() && s.id !== editing?.id,
-    )
-    if (nameDup) {
-      form.setFields([{ name: 'name', errors: ['A section with this name already exists in this class.'] }])
-      return
-    }
-    const payload = {
-      classId:        values.classId,
-      name:           values.name,
-      capacity:       values.capacity ?? null,
-      classTeacherId: values.classTeacherId ?? null,
-      status:         values.status,
-    }
+      if (isEditing && editing?.id) {
+        const patch = { name: values.name, capacity: values.capacity ?? null, status: values.status }
+        await client.patch<ApiResponse<Section>>(ENDPOINTS.SECTIONS.DETAIL(editing.id), patch)
+        toast.success(`Section ${values.name} updated`)
+      } else {
+        const payload = { classId: values.classId, name: values.name }
+        await client.post<ApiResponse<Section>>(ENDPOINTS.SECTIONS.BASE, payload)
+        toast.success(`Section ${values.name} created`)
+      }
 
-    if (isEditing && editing?.id) {
-      sectionStore.updateSection(editing.id, payload)
-      toast.success(`Section ${values.name} updated`)
-    } else {
-      sectionStore.addSection(payload)
-      toast.success(`Section ${values.name} created`)
+      invalidateSections()
+      qc.invalidateQueries({ predicate: sectionsQueryPredicate() })
+      form.resetFields()
+      onClose()
+    } catch (err: any) {
+      if (err?.errorFields) return
+      toast.error(err?.message || 'Operation failed')
+    } finally {
+      setIsSubmitting(false)
     }
-    form.resetFields()
-    onClose()
   }
 
   return (
@@ -819,7 +808,7 @@ function SectionFormDrawer({ open, academicYearId, editing, sectionStore, onClos
       extra={
         <Space>
           <Button onClick={() => { form.resetFields(); onClose() }}>Cancel</Button>
-          <Button type="primary" style={{ background: colors.primary }} onClick={onSubmit}>
+          <Button type="primary" style={{ background: colors.primary }} loading={isSubmitting} onClick={onSubmit}>
             {isEditing ? 'Save Changes' : 'Create Section'}
           </Button>
         </Space>
@@ -830,70 +819,87 @@ function SectionFormDrawer({ open, academicYearId, editing, sectionStore, onClos
         <p style={{ margin: '4px 0 12px', fontSize: 12, color: colors.muted }}>
           Select the class this section belongs to.
         </p>
-        <Form.Item name="classId" label="Class" rules={[{ required: true, message: 'Class is required' }]}>
-          <Select
-            placeholder="Select class"
-            disabled={isEditing}
-            options={activeClasses.map((c) => ({ label: c.name, value: c.id }))}
-          />
-        </Form.Item>
+
+        {isEditing ? (
+          // Edit mode — show class name as disabled input
+          <Form.Item label="Class">
+            <Input
+              disabled
+              value={
+                editing?.class?.name
+                  ?? activeClasses.find((c) => c.id === editing?.classId)?.name
+                  ?? '—'
+              }
+            />
+          </Form.Item>
+        ) : editing?.classId ? (
+          // Pre-selected from class row — show class name as disabled input
+          <Form.Item label="Class">
+            <Input
+              disabled
+              value={presetClass?.name ?? editing.class?.name ?? '—'}
+            />
+          </Form.Item>
+        ) : (
+          // Direct creation — academic year picker (defaults to CURRENT) then class select
+          <>
+            <Form.Item label="Filter by Academic Year">
+              <Select
+                value={effectiveYearId}
+                onChange={(v) => { setSelectedYearId(v); form.setFieldValue('classId', undefined) }}
+                options={academicYearsFromClasses.map((y) => ({
+                  label: `${y.name}${y.status === 'CURRENT' ? ' (Current)' : ''}`,
+                  value: y.id,
+                }))}
+              />
+            </Form.Item>
+            <Form.Item name="classId" label="Class" rules={[{ required: true, message: 'Class is required' }]}>
+              <Select
+                placeholder="Select class"
+                showSearch
+                filterOption={(input, opt) =>
+                  (opt?.label as string ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+                options={activeClasses.map((c) => ({ label: c.name, value: c.id }))}
+              />
+            </Form.Item>
+          </>
+        )}
 
         <Typography.Text strong style={{ fontSize: 13 }}>Section Details</Typography.Text>
         <div style={{ marginTop: 12 }}>
+          <Form.Item name="name" label="Section Name"
+            rules={[{ required: true, message: 'Section name is required' }]}>
+            <Input placeholder="e.g. A, B, Crimson" />
+          </Form.Item>
+
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="name" label="Section Name" rules={[{ required: true, message: 'Section name is required' }]}>
-                <Input placeholder="e.g. A, B, Crimson" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name="capacity" label="Capacity (optional)">
+              <Form.Item name="capacity" label="Capacity">
                 <InputNumber min={1} max={200} style={{ width: '100%' }} placeholder="e.g. 40" />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item name="status" label="Status" rules={[{ required: true }]}>
-                <Select
-                  options={[
-                    { label: 'Active',   value: 'ACTIVE' },
-                    { label: 'Inactive', value: 'INACTIVE' },
-                  ]}
-                />
-              </Form.Item>
-            </Col>
+            {isEditing && (
+              <Col span={12}>
+                <Form.Item name="status" label="Status" rules={[{ required: true }]}>
+                  <Select options={[{ label: 'Active', value: 'ACTIVE' }, { label: 'Inactive', value: 'INACTIVE' }]} />
+                </Form.Item>
+              </Col>
+            )}
           </Row>
         </div>
-
-        <Typography.Text strong style={{ fontSize: 13 }}>Class Teacher</Typography.Text>
-        <p style={{ margin: '4px 0 12px', fontSize: 12, color: colors.muted }}>
-          Only active teachers can be assigned.
-        </p>
-        <Form.Item name="classTeacherId" label="Class Teacher">
-          <Select
-            allowClear
-            showSearch
-            placeholder="Select teacher"
-            filterOption={(input, option) =>
-              (option?.label as string ?? '').toLowerCase().includes(input.toLowerCase())
-            }
-            options={activeTeachers.map((t) => ({ label: `${t.name} — ${t.department}`, value: t.id }))}
-          />
-        </Form.Item>
       </Form>
     </Drawer>
   )
 }
 
-// ─── CLASS DETAIL DRAWER ─────────────────────────────────────────────────────
+//  CLASS DETAIL DRAWER
 
 function ClassDetailDrawer({
-  schoolClass, sectionStore, canUpdate, canCreateSection,
+  schoolClass, canUpdate, canCreateSection,
   onClose, onEdit, onAddSection, onViewSection,
 }: {
   schoolClass: SchoolClass | null
-  sectionStore: SectionStore
   canUpdate: boolean
   canCreateSection: boolean
   onClose: () => void
@@ -901,10 +907,15 @@ function ClassDetailDrawer({
   onAddSection: (c: SchoolClass) => void
   onViewSection: (s: Section) => void
 }) {
-  if (!schoolClass) return null
-
-  const sections = sectionStore.sectionsByClass(schoolClass.id)
+  // Fetch sections for this class from the real API
+  const { data: sectionsResponse } = useGet<ApiPaginatedResponse<Section>>(
+    `${ENDPOINTS.SECTIONS.BASE}?classId=${schoolClass?.id}&limit=100`,
+    Boolean(schoolClass?.id),
+  )
+  const sections = sectionsResponse?.data ?? []
   const totalCap = sections.reduce((sum, s) => sum + (s.capacity ?? 0), 0)
+
+  if (!schoolClass) return null
 
   const sectionColumns: ColumnsType<Section> = [
     {
@@ -964,27 +975,16 @@ function ClassDetailDrawer({
       </Row>
 
       <Descriptions bordered size="small" column={2} style={{ marginBottom: 20 }}>
-        <Descriptions.Item label="Academic Year">
-          {schoolClass.academicYear?.name ?? '—'}
-        </Descriptions.Item>
-        <Descriptions.Item label="Status">
-          <StatusBadge status={schoolClass.status} />
-        </Descriptions.Item>
-        <Descriptions.Item label="Class Code">
-          <span style={{ fontFamily: 'monospace' }}>{schoolClass.code}</span>
-        </Descriptions.Item>
-        <Descriptions.Item label="Created">
-          {new Date(schoolClass.createdAt).toLocaleDateString()}
-        </Descriptions.Item>
+        <Descriptions.Item label="Academic Year">{schoolClass.academicYear?.name ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="Status"><StatusBadge status={schoolClass.status} /></Descriptions.Item>
+        <Descriptions.Item label="Class Code"><span style={{ fontFamily: 'monospace' }}>{schoolClass.code}</span></Descriptions.Item>
+        <Descriptions.Item label="Created">{new Date(schoolClass.createdAt).toLocaleDateString()}</Descriptions.Item>
       </Descriptions>
 
       <Typography.Title level={5} style={{ marginBottom: 12 }}>Sections</Typography.Title>
 
       {sections.length === 0 ? (
-        <div style={{
-          padding: 32, textAlign: 'center',
-          background: colors.surfaceAlt, borderRadius: 8, border: `1px solid ${colors.border}`,
-        }}>
+        <div style={{ padding: 32, textAlign: 'center', background: colors.surfaceAlt, borderRadius: 8, border: `1px solid ${colors.border}` }}>
           <Typography.Text type="secondary">No sections configured for {schoolClass.name}.</Typography.Text>
           {canCreateSection && (
             <div style={{ marginTop: 12 }}>
@@ -1009,32 +1009,60 @@ function ClassDetailDrawer({
   )
 }
 
-// ─── SECTION DETAIL DRAWER ───────────────────────────────────────────────────
+//  SECTION DETAIL DRAWER 
 
 function SectionDetailDrawer({ section, canUpdate, onClose, onEdit }: {
   section: Section | null
-  sectionStore: SectionStore
   canUpdate: boolean
   onClose: () => void
   onEdit: (s: Section) => void
 }) {
+  // Fetch fresh section data to get populated class field
+  const { data: sectionResponse } = useGet<ApiResponse<Section>>(
+    ENDPOINTS.SECTIONS.DETAIL(section?.id ?? ''),
+    Boolean(section?.id),
+  )
+  const detail = sectionResponse?.data ?? section
+
+  const teacher = detail?.classTeacherId
+    ? MOCK_TEACHERS.find((t) => t.id === detail.classTeacherId)
+    : null
+
   if (!section) return null
 
-  const teacher = section.classTeacherId
-    ? MOCK_TEACHERS.find((t) => t.id === section.classTeacherId)
-    : null
+  // Mock student columns — replace with real API when student module is ready
+  const studentColumns: ColumnsType<MockStudent> = [
+    {
+      title: 'Student',
+      key: 'student',
+      render: (_: unknown, s: MockStudent) => (
+        <Space>
+          <Avatar size={28} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 600, fontSize: 11 }}>
+            {initials(s.name)}
+          </Avatar>
+          <div>
+            <div style={{ fontWeight: 500, fontSize: 13 }}>{s.name}</div>
+            <div style={{ fontFamily: 'monospace', fontSize: 11, color: colors.muted }}>{s.admissionNo}</div>
+          </div>
+        </Space>
+      ),
+    },
+    { title: 'Gender',  dataIndex: 'gender', width: 90 },
+    { title: 'Contact', dataIndex: 'phone',  render: (v: string) => <span style={{ fontFamily: 'monospace' }}>{v}</span> },
+    { title: 'Status',  dataIndex: 'status', width: 100, render: (v: string) => <StatusBadge status={v} /> },
+  ]
 
   return (
     <Drawer
       title={
         <Space>
           <Avatar size={36} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 15 }}>
-            {section.name}
+            {detail?.name ?? ''}
           </Avatar>
           <div>
-            <div>Section {section.name}</div>
+            <div>Section {detail?.name}</div>
             <div style={{ fontSize: 12, color: colors.muted, fontWeight: 400 }}>
-              <span style={{ fontFamily: 'monospace' }}>{section.code}</span>
+              {detail?.class?.name ?? section.class?.name ?? '—'}
             </div>
           </div>
         </Space>
@@ -1052,10 +1080,9 @@ function SectionDetailDrawer({ section, canUpdate, onClose, onEdit }: {
     >
       <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
         {[
-          { label: 'Capacity',        value: section.capacity ?? '—',
-            icon: <TeamOutlined />,   color: colors.info,    bg: colors.infoLight },
-          { label: 'Available Seats', value: section.capacity != null ? Math.max(0, section.capacity) : '—',
-            icon: <UserOutlined />,   color: colors.success, bg: colors.successLight },
+          { label: 'Capacity',        value: detail?.capacity ?? '—', icon: <TeamOutlined />, color: colors.info,    bg: colors.infoLight },
+          { label: 'Available Seats', value: detail?.capacity != null ? Math.max(0, detail.capacity) : '—',
+            icon: <UserOutlined />, color: colors.success, bg: colors.successLight },
         ].map((k) => (
           <Col key={k.label} span={12}>
             <StatCard variant="compact" size="small" label={k.label} value={k.value} icon={k.icon} color={k.color} iconBg={k.bg} />
@@ -1063,12 +1090,14 @@ function SectionDetailDrawer({ section, canUpdate, onClose, onEdit }: {
         ))}
       </Row>
 
-      <Descriptions bordered size="small" column={2}>
+      <Descriptions bordered size="small" column={2} style={{ marginBottom: 20 }}>
+        <Descriptions.Item label="Class">{detail?.class?.name ?? section.class?.name ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="Status"><StatusBadge status={detail?.status ?? section.status} /></Descriptions.Item>
         <Descriptions.Item label="Section Code">
-          <span style={{ fontFamily: 'monospace' }}>{section.code}</span>
+          <span style={{ fontFamily: 'monospace' }}>{detail?.code ?? section.code}</span>
         </Descriptions.Item>
-        <Descriptions.Item label="Status">
-          <StatusBadge status={section.status} />
+        <Descriptions.Item label="Created">
+          {new Date(detail?.createdAt ?? section.createdAt).toLocaleDateString()}
         </Descriptions.Item>
         <Descriptions.Item label="Class Teacher" span={2}>
           {teacher ? (
@@ -1082,10 +1111,24 @@ function SectionDetailDrawer({ section, canUpdate, onClose, onEdit }: {
             <span style={{ color: colors.muted }}>Not assigned</span>
           )}
         </Descriptions.Item>
-        <Descriptions.Item label="Created">
-          {new Date(section.createdAt).toLocaleDateString()}
-        </Descriptions.Item>
       </Descriptions>
+
+      {/* Students in this Section — mock data, replace with real API when student module is ready */}
+      <Typography.Title level={5} style={{ marginBottom: 12 }}>Students in this Section</Typography.Title>
+      {MOCK_STUDENTS.length === 0 ? (
+        <div style={{ padding: 32, textAlign: 'center', background: colors.surfaceAlt, borderRadius: 8, border: `1px solid ${colors.border}` }}>
+          <Typography.Text type="secondary">No students assigned to this section.</Typography.Text>
+        </div>
+      ) : (
+        <Table<MockStudent>
+          rowKey="id"
+          columns={studentColumns}
+          dataSource={MOCK_STUDENTS}
+          size="small"
+          pagination={false}
+          scroll={{ x: 500 }}
+        />
+      )}
     </Drawer>
   )
 }

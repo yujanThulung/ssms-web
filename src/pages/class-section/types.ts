@@ -20,6 +20,7 @@ export interface SchoolClass extends BaseEntity {
 
 export interface Section extends BaseEntity {
   classId: string
+  class?: SchoolClass
   name: string
   code: string
   capacity: number | null

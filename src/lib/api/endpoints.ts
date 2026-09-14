@@ -38,5 +38,9 @@ export const ENDPOINTS = {
   CLASSES: {
     BASE: '/classes',
     DETAIL: (id: string | number) => `/classes/${id}`,
-  }
+  },
+  SECTIONS: {
+    BASE: '/sections',
+    DETAIL: (id: string | number) => `/sections/${id}`,
+  },
 } as const
