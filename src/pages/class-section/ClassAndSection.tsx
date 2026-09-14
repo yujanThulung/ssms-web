@@ -1,117 +1,212 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from "react";
 import {
-  Table, Drawer, Button, Space, Select,
-  Form, InputNumber, Row, Col, Descriptions, Avatar, Tabs, Typography, Input,
-} from 'antd'
-import type { ColumnsType } from 'antd/es/table'
+  Table,
+  Drawer,
+  Button,
+  Space,
+  Select,
+  Form,
+  InputNumber,
+  Row,
+  Col,
+  Descriptions,
+  Avatar,
+  Tabs,
+  Typography,
+  Input,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
 import {
-  PlusOutlined, EditOutlined, EyeOutlined,
-  BookOutlined, TeamOutlined, UserOutlined, AppstoreOutlined,
-} from '@ant-design/icons'
-import { toast } from 'sonner'
-import { useQueryClient } from '@tanstack/react-query'
-import client from '../../lib/api/client'
-import { colors, DRAWER, radius } from '../../lib/designTokens'
-import { usePermission } from '../../context/PermissionContext'
-import { FEATURES, ACTIONS } from '../../utils/permissions'
-import { StatusBadge } from '../../components/common/StatusBadge'
-import { AppTable } from '../../components/common/AppTable'
-import { SearchAndFilter } from '../../components/common/SearchAndFilter'
-import { StatCard } from '../../components/common/StatCard'
-import { ENDPOINTS } from '../../lib/api/endpoints'
-import { useGet } from '../../lib/api/hooks/useGet'
-import type { ApiPaginatedResponse, ApiResponse } from '../../lib/api/types'
-import type { SchoolClass, Section, AcademicYear } from './types'
-import { MOCK_TEACHERS } from './mockData'
-import { TableSkeleton } from '../../components/skeleton'
+  PlusOutlined,
+  EditOutlined,
+  EyeOutlined,
+  BookOutlined,
+  TeamOutlined,
+  UserOutlined,
+  AppstoreOutlined,
+} from "@ant-design/icons";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import client from "../../lib/api/client";
+import { colors, DRAWER, radius } from "../../lib/designTokens";
+import { usePermission } from "../../context/PermissionContext";
+import { FEATURES, ACTIONS } from "../../utils/permissions";
+import { StatusBadge } from "../../components/common/StatusBadge";
+import { AppTable } from "../../components/common/AppTable";
+import { SearchAndFilter } from "../../components/common/SearchAndFilter";
+import { StatCard } from "../../components/common/StatCard";
+import { ENDPOINTS } from "../../lib/api/endpoints";
+import { useGet } from "../../lib/api/hooks/useGet";
+import type { ApiPaginatedResponse, ApiResponse } from "../../lib/api/types";
+import type { SchoolClass, Section, AcademicYear } from "./types";
+import { MOCK_TEACHERS } from "./mockData";
+import { TableSkeleton } from "../../components/skeleton";
 
-const { Title, Text } = Typography
+const { Title, Text } = Typography;
 
-// ─── Helpers 
+// ─── Helpers
 
 function initials(name: string) {
-  return name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 function sectionsQueryPredicate(classId?: string) {
   return (query: { queryKey: readonly unknown[] }) => {
-    const key = query.queryKey[0]
-    if (typeof key !== 'string') return false
-    if (!key.startsWith(ENDPOINTS.SECTIONS.BASE)) return false
-    if (classId) return key.includes(classId)
-    return true
-  }
+    const key = query.queryKey[0];
+    if (typeof key !== "string") return false;
+    if (!key.startsWith(ENDPOINTS.SECTIONS.BASE)) return false;
+    if (classId) return key.includes(classId);
+    return true;
+  };
 }
 
 function classesQueryPredicate(academicYearId?: string) {
   return (query: { queryKey: readonly unknown[] }) => {
-    const key = query.queryKey[0]
-    if (typeof key !== 'string') return false
-    if (!key.startsWith(ENDPOINTS.CLASSES.BASE)) return false
-    if (academicYearId) return key.includes(academicYearId)
-    return true
-  }
+    const key = query.queryKey[0];
+    if (typeof key !== "string") return false;
+    if (!key.startsWith(ENDPOINTS.CLASSES.BASE)) return false;
+    if (academicYearId) return key.includes(academicYearId);
+    return true;
+  };
 }
 
 // ─── Mock student data (replace when student module is ready) ─────────────────
 
 interface MockStudent {
-  id: string
-  name: string
-  admissionNo: string
-  gender: string
-  phone: string
-  status: 'ACTIVE' | 'INACTIVE'
+  id: string;
+  name: string;
+  admissionNo: string;
+  gender: string;
+  phone: string;
+  status: "ACTIVE" | "INACTIVE";
 }
 
 const MOCK_STUDENTS: MockStudent[] = [
-  { id: 'stu-1', name: 'Aarav Sharma',    admissionNo: 'ADM-001', gender: 'Male',   phone: '9841000001', status: 'ACTIVE' },
-  { id: 'stu-2', name: 'Priya Thapa',     admissionNo: 'ADM-002', gender: 'Female', phone: '9841000002', status: 'ACTIVE' },
-  { id: 'stu-3', name: 'Rohan Adhikari',  admissionNo: 'ADM-003', gender: 'Male',   phone: '9841000003', status: 'ACTIVE' },
-  { id: 'stu-4', name: 'Sita Rai',        admissionNo: 'ADM-004', gender: 'Female', phone: '9841000004', status: 'INACTIVE' },
-]
+  {
+    id: "stu-1",
+    name: "Aarav Sharma",
+    admissionNo: "ADM-001",
+    gender: "Male",
+    phone: "9841000001",
+    status: "ACTIVE",
+  },
+  {
+    id: "stu-2",
+    name: "Priya Thapa",
+    admissionNo: "ADM-002",
+    gender: "Female",
+    phone: "9841000002",
+    status: "ACTIVE",
+  },
+  {
+    id: "stu-3",
+    name: "Rohan Adhikari",
+    admissionNo: "ADM-003",
+    gender: "Male",
+    phone: "9841000003",
+    status: "ACTIVE",
+  },
+  {
+    id: "stu-4",
+    name: "Sita Rai",
+    admissionNo: "ADM-004",
+    gender: "Female",
+    phone: "9841000004",
+    status: "INACTIVE",
+  },
+];
 
 //  MAIN PAGE
 
 export default function ClassAndSection() {
-  const { can } = usePermission()
-  const canCreate        = can(FEATURES.CLASS_SECTION, ACTIONS.CREATE)
-  const canUpdate        = can(FEATURES.CLASS_SECTION, ACTIONS.UPDATE)
-  const canDelete        = can(FEATURES.CLASS_SECTION, ACTIONS.DELETE)
-  const canCreateSection = can(FEATURES.CLASS_SECTION, ACTIONS.CREATE)
+  const { can } = usePermission();
+  const canCreate = can(FEATURES.CLASS_SECTION, ACTIONS.CREATE);
+  const canUpdate = can(FEATURES.CLASS_SECTION, ACTIONS.UPDATE);
+  const canDelete = can(FEATURES.CLASS_SECTION, ACTIONS.DELETE);
+  const canCreateSection = can(FEATURES.CLASS_SECTION, ACTIONS.CREATE);
 
-  const [activeTab, setActiveTab] = useState('classes')
-  const [classDrawer, setClassDrawer] = useState(false)
-  const [sectionDrawer, setSectionDrawer] = useState(false)
-  const [editingClass, setEditingClass] = useState<SchoolClass | null>(null)
-  const [editingSection, setEditingSection] = useState<Partial<Section> | null>(null)
-  const [viewClass, setViewClass] = useState<SchoolClass | null>(null)
-  const [viewSection, setViewSection] = useState<Section | null>(null)
+  const [activeTab, setActiveTab] = useState("classes");
+  const [classDrawer, setClassDrawer] = useState(false);
+  const [sectionDrawer, setSectionDrawer] = useState(false);
+  const [editingClass, setEditingClass] = useState<SchoolClass | null>(null);
+  const [editingSection, setEditingSection] = useState<Partial<Section> | null>(
+    null,
+  );
+  const [viewClass, setViewClass] = useState<SchoolClass | null>(null);
+  const [viewSection, setViewSection] = useState<Section | null>(null);
 
-  const [classCounts, setClassCounts] = useState({ total: 0, active: 0 })
-  const [sectionCounts, setSectionCounts] = useState({ total: 0, active: 0 })
-  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string | undefined>(undefined)
+  const [classCounts, setClassCounts] = useState({ total: 0, active: 0 });
+  const [sectionCounts, setSectionCounts] = useState({ total: 0, active: 0 });
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<
+    string | undefined
+  >(undefined);
 
   const kpiCards = [
-    { icon: <BookOutlined />,     label: 'Total Classes',   value: classCounts.total,   color: colors.primary, bg: colors.primaryLight },
-    { icon: <AppstoreOutlined />, label: 'Active Classes',  value: classCounts.active,  color: colors.success, bg: colors.successLight },
-    { icon: <TeamOutlined />,     label: 'Total Sections',  value: sectionCounts.total, color: colors.info,    bg: colors.infoLight },
-    { icon: <AppstoreOutlined />, label: 'Active Sections', value: sectionCounts.active, color: colors.success, bg: colors.successLight },
-  ]
+    {
+      icon: <BookOutlined />,
+      label: "Total Classes",
+      value: classCounts.total,
+      color: colors.primary,
+      bg: colors.primaryLight,
+    },
+    {
+      icon: <AppstoreOutlined />,
+      label: "Active Classes",
+      value: classCounts.active,
+      color: colors.success,
+      bg: colors.successLight,
+    },
+    {
+      icon: <TeamOutlined />,
+      label: "Total Sections",
+      value: sectionCounts.total,
+      color: colors.info,
+      bg: colors.infoLight,
+    },
+    {
+      icon: <AppstoreOutlined />,
+      label: "Active Sections",
+      value: sectionCounts.active,
+      color: colors.success,
+      bg: colors.successLight,
+    },
+  ];
 
-  const openAddClass   = () => { setEditingClass(null); setClassDrawer(true) }
-  const openEditClass  = (c: SchoolClass) => { setEditingClass(c); setClassDrawer(true) }
+  const openAddClass = () => {
+    setEditingClass(null);
+    setClassDrawer(true);
+  };
+  const openEditClass = (c: SchoolClass) => {
+    setEditingClass(c);
+    setClassDrawer(true);
+  };
   const openAddSection = (c?: SchoolClass) => {
-    setEditingSection(c ? { classId: c.id } : null)
-    setSectionDrawer(true)
-  }
+    setEditingSection(c ? { classId: c.id } : null);
+    setSectionDrawer(true);
+  };
 
   return (
     <div style={{ padding: 24 }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          marginBottom: 20,
+          flexWrap: "wrap",
+          gap: 12,
+        }}
+      >
         <div>
-          <Title level={4} style={{ margin: 0, color: colors.text }}>Classes &amp; Sections</Title>
+          <Title level={4} style={{ margin: 0, color: colors.text }}>
+            Classes &amp; Sections
+          </Title>
           <Text type="secondary" style={{ fontSize: 13 }}>
             Configure classes and sections for each academic year
           </Text>
@@ -123,7 +218,12 @@ export default function ClassAndSection() {
             </Button>
           )}
           {canCreate && (
-            <Button type="primary" icon={<PlusOutlined />} style={{ background: colors.primary }} onClick={openAddClass}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              style={{ background: colors.primary }}
+              onClick={openAddClass}
+            >
               Add Class
             </Button>
           )}
@@ -153,8 +253,8 @@ export default function ClassAndSection() {
         onChange={setActiveTab}
         items={[
           {
-            key: 'classes',
-            label: 'Classes',
+            key: "classes",
+            label: "Classes",
             children: (
               <ClassesTab
                 canUpdate={canUpdate}
@@ -169,12 +269,15 @@ export default function ClassAndSection() {
             ),
           },
           {
-            key: 'sections',
-            label: 'Sections',
+            key: "sections",
+            label: "Sections",
             children: (
               <SectionsTab
                 canUpdate={canUpdate}
-                onEdit={(s) => { setEditingSection(s); setSectionDrawer(true) }}
+                onEdit={(s) => {
+                  setEditingSection(s);
+                  setSectionDrawer(true);
+                }}
                 onView={(s) => setViewSection(s)}
                 onCountsChange={setSectionCounts}
               />
@@ -188,80 +291,121 @@ export default function ClassAndSection() {
         open={classDrawer}
         academicYearId={selectedAcademicYearId}
         editing={editingClass}
-        onClose={() => { setClassDrawer(false); setEditingClass(null) }}
+        onClose={() => {
+          setClassDrawer(false);
+          setEditingClass(null);
+        }}
       />
       <SectionFormDrawer
         open={sectionDrawer}
         academicYearId={selectedAcademicYearId}
         editing={editingSection}
-        onClose={() => { setSectionDrawer(false); setEditingSection(null) }}
+        onClose={() => {
+          setSectionDrawer(false);
+          setEditingSection(null);
+        }}
       />
       <ClassDetailDrawer
         schoolClass={viewClass}
         canUpdate={canUpdate}
         canCreateSection={canCreateSection}
         onClose={() => setViewClass(null)}
-        onEdit={(c) => { setViewClass(null); openEditClass(c) }}
-        onAddSection={(c) => { setViewClass(null); openAddSection(c) }}
-        onViewSection={(s) => { setViewClass(null); setViewSection(s) }}
+        onEdit={(c) => {
+          setViewClass(null);
+          openEditClass(c);
+        }}
+        onAddSection={(c) => {
+          setViewClass(null);
+          openAddSection(c);
+        }}
+        onViewSection={(s) => {
+          setViewClass(null);
+          setViewSection(s);
+        }}
       />
       <SectionDetailDrawer
         section={viewSection}
         canUpdate={canUpdate}
         onClose={() => setViewSection(null)}
-        onEdit={(s) => { setViewSection(null); setEditingSection(s); setSectionDrawer(true) }}
+        onEdit={(s) => {
+          setViewSection(null);
+          setEditingSection(s);
+          setSectionDrawer(true);
+        }}
       />
     </div>
-  )
+  );
 }
 
-//  CLASSES TAB 
+//  CLASSES TAB
 
 function ClassesTab({
-  canUpdate,canCreateSection,
-  onEdit, onView, onAddSection, onCountsChange, onAcademicYearChange,
+  canUpdate,
+  canCreateSection,
+  onEdit,
+  onView,
+  onAddSection,
+  onCountsChange,
+  onAcademicYearChange,
 }: {
-  canUpdate: boolean
-  canDelete: boolean
-  canCreateSection: boolean
-  onEdit: (c: SchoolClass) => void
-  onView: (c: SchoolClass) => void
-  onAddSection: (c: SchoolClass) => void
-  onCountsChange: (counts: { total: number; active: number }) => void
-  onAcademicYearChange: (id: string | undefined) => void
+  canUpdate: boolean;
+  canDelete: boolean;
+  canCreateSection: boolean;
+  onEdit: (c: SchoolClass) => void;
+  onView: (c: SchoolClass) => void;
+  onAddSection: (c: SchoolClass) => void;
+  onCountsChange: (counts: { total: number; active: number }) => void;
+  onAcademicYearChange: (id: string | undefined) => void;
 }) {
+  const [q, setQ] = useState("");
+  const [filterValues, setFilterValues] = useState<
+    Record<string, string | undefined>
+  >({});
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [sortBy, setSortBy] = useState("name");
+  const [sortOrder, setSortOrder] = useState<"ASC" | "DESC">("DESC");
 
-  const [q, setQ] = useState('')
-  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({})
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(10)
-  const [sortBy, setSortBy] = useState('name')
-  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC')
+  const statusFilter = filterValues["status"];
+  const academicYearId = filterValues["academicYearId"];
 
-  const statusFilter   = filterValues['status']
-  const academicYearId = filterValues['academicYearId']
-
-  const { data: academicYearsResponse } = useGet<ApiPaginatedResponse<AcademicYear>>(
+  const { data: academicYearsResponse } = useGet<
+    ApiPaginatedResponse<AcademicYear>
+  >(
     `${ENDPOINTS.ACADEMIC_YEARS.LIST}?limit=50&sortBy=startDate&sortOrder=DESC`,
-  )
-  const academicYears = academicYearsResponse?.data ?? []
-
-  useEffect(() => { onAcademicYearChange(academicYearId) }, [academicYearId])
-
-  const queryParams = new URLSearchParams({ page: page.toString(), limit: limit.toString(), sortBy, sortOrder })
-  if (q)             queryParams.append('search', q)
-  if (statusFilter)  queryParams.append('status', statusFilter)
-  if (academicYearId) queryParams.append('academicYearId', academicYearId)
-
-  const queryKey = `${ENDPOINTS.CLASSES.BASE}?${queryParams.toString()}`
-  const { data: listResponse, isLoading, isFetching } = useGet<ApiPaginatedResponse<SchoolClass>>(queryKey)
-
-  const rows = listResponse?.data ?? []
-  const meta = listResponse?.meta
+  );
+  const academicYears = academicYearsResponse?.data ?? [];
 
   useEffect(() => {
-    onCountsChange({ total: meta?.total ?? 0, active: rows.filter((c) => c.status === 'ACTIVE').length })
-  }, [rows, meta?.total])
+    onAcademicYearChange(academicYearId);
+  }, [academicYearId]);
+
+  const queryParams = new URLSearchParams({
+    page: page.toString(),
+    limit: limit.toString(),
+    sortBy,
+    sortOrder,
+  });
+  if (q) queryParams.append("search", q);
+  if (statusFilter) queryParams.append("status", statusFilter);
+  if (academicYearId) queryParams.append("academicYearId", academicYearId);
+
+  const queryKey = `${ENDPOINTS.CLASSES.BASE}?${queryParams.toString()}`;
+  const {
+    data: listResponse,
+    isLoading,
+    isFetching,
+  } = useGet<ApiPaginatedResponse<SchoolClass>>(queryKey);
+
+  const rows = listResponse?.data ?? [];
+  const meta = listResponse?.meta;
+
+  useEffect(() => {
+    onCountsChange({
+      total: meta?.total ?? 0,
+      active: rows.filter((c) => c.status === "ACTIVE").length,
+    });
+  }, [rows, meta?.total]);
 
   // const handleDelete = (c: SchoolClass) => {
   //   appConfirm({
@@ -283,37 +427,45 @@ function ClassesTab({
   // }
 
   const filterColumns = [
-    { key: 'name', title: 'Class Name', isSearchable: true },
+    { key: "name", title: "Class Name", isSearchable: true },
     {
-      key: 'academicYearId',
-      title: 'Academic Year',
+      key: "academicYearId",
+      title: "Academic Year",
       isFilterable: true,
       filterWidth: 200,
       filterOptions: academicYears.map((y) => ({
-        label: `${y.name}${y.status === 'CURRENT' ? ' (Current)' : ''}`,
+        label: `${y.name}${y.status === "CURRENT" ? " (Current)" : ""}`,
         value: y.id,
       })),
     },
     {
-      key: 'status',
-      title: 'Status',
+      key: "status",
+      title: "Status",
       isFilterable: true,
       filterWidth: 130,
       filterOptions: [
-        { label: 'Active',   value: 'ACTIVE' },
-        { label: 'Inactive', value: 'INACTIVE' },
+        { label: "Active", value: "ACTIVE" },
+        { label: "Inactive", value: "INACTIVE" },
       ],
     },
-  ]
+  ];
 
   const columns: ColumnsType<SchoolClass> = [
     {
-      title: 'Class Name',
-      dataIndex: 'name',
+      title: "Class Name",
+      dataIndex: "name",
       sorter: true,
       render: (name: string) => (
         <Space>
-          <Avatar size={32} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 11 }}>
+          <Avatar
+            size={32}
+            style={{
+              background: colors.primaryLight,
+              color: colors.primary,
+              fontWeight: 700,
+              fontSize: 11,
+            }}
+          >
             {initials(name)}
           </Avatar>
           <span style={{ fontWeight: 500 }}>{name}</span>
@@ -321,53 +473,83 @@ function ClassesTab({
       ),
     },
     {
-      title: 'Code',
-      dataIndex: 'code',
-      render: (v: string) => <span style={{ fontFamily: 'monospace' }}>{v}</span>,
+      title: "Code",
+      dataIndex: "code",
+      render: (v: string) => (
+        <span style={{ fontFamily: "monospace" }}>{v}</span>
+      ),
     },
     {
-      title: 'Academic Year',
-      key: 'academicYear',
-      render: (_: unknown, c: SchoolClass) => c.academicYear?.name ?? '—',
+      title: "Academic Year",
+      key: "academicYear",
+      render: (_: unknown, c: SchoolClass) => c.academicYear?.name ?? "—",
     },
     {
-      title: 'Status',
-      dataIndex: 'status',
+      title: "Status",
+      dataIndex: "status",
       render: (v: string) => <StatusBadge status={v} />,
     },
     {
-      title: 'Created',
-      dataIndex: 'createdAt',
-      render: (v: string) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{new Date(v).toLocaleDateString()}</span>,
+      title: "Created",
+      dataIndex: "createdAt",
+      render: (v: string) => (
+        <span style={{ fontFamily: "monospace", fontSize: 12 }}>
+          {new Date(v).toLocaleDateString()}
+        </span>
+      ),
     },
     {
-      title: 'Actions',
-      key: 'actions',
-      fixed: 'right',
+      title: "Actions",
+      key: "actions",
+      fixed: "right",
       width: 120,
-      align: 'center',
+      align: "center",
       render: (_: unknown, c: SchoolClass) => (
         <Space size={6} onClick={(e) => e.stopPropagation()}>
-          <Button type="default" size="small" icon={<EyeOutlined />} title="View Details"
+          <Button
+            type="default"
+            size="small"
+            icon={<EyeOutlined />}
+            title="View Details"
             onClick={() => onView(c)}
-            style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
+            style={{
+              borderRadius: radius.sm,
+              borderColor: colors.border,
+              color: colors.muted,
+            }}
           />
           {canCreateSection && (
-            <Button type="default" size="small" icon={<PlusOutlined />} title="Add Section"
+            <Button
+              type="default"
+              size="small"
+              icon={<PlusOutlined />}
+              title="Add Section"
               onClick={() => onAddSection(c)}
-              style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
+              style={{
+                borderRadius: radius.sm,
+                borderColor: colors.border,
+                color: colors.muted,
+              }}
             />
           )}
           {canUpdate && (
-            <Button type="default" size="small" icon={<EditOutlined />} title="Edit"
+            <Button
+              type="default"
+              size="small"
+              icon={<EditOutlined />}
+              title="Edit"
               onClick={() => onEdit(c)}
-              style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
+              style={{
+                borderRadius: radius.sm,
+                borderColor: colors.border,
+                color: colors.muted,
+              }}
             />
           )}
         </Space>
       ),
     },
-  ]
+  ];
 
   return (
     <>
@@ -377,10 +559,20 @@ function ClassesTab({
         onSearchChange={setQ}
         debounceMs={300}
         filterValues={filterValues}
-        onFilterChange={(key, value) => { setFilterValues((prev) => ({ ...prev, [key]: value })); setPage(1) }}
+        onFilterChange={(key, value) => {
+          setFilterValues((prev) => ({ ...prev, [key]: value }));
+          setPage(1);
+        }}
       />
       {isLoading ? (
-        <div style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 12, overflow: 'hidden' }}>
+        <div
+          style={{
+            backgroundColor: colors.surface,
+            border: `1px solid ${colors.border}`,
+            borderRadius: 12,
+            overflow: "hidden",
+          }}
+        >
           <TableSkeleton rows={Math.min(limit, 5)} columns={5} />
         </div>
       ) : (
@@ -391,108 +583,125 @@ function ClassesTab({
           loading={isFetching}
           onRowClick={(c) => onView(c)}
           onChange={(pagination, _filters, sorter: any) => {
-            setPage(pagination.current || 1)
-            setLimit(pagination.pageSize || 10)
-            if (sorter?.field) { setSortBy(sorter.field); setSortOrder(sorter.order === 'ascend' ? 'ASC' : 'DESC') }
+            setPage(pagination.current || 1);
+            setLimit(pagination.pageSize || 10);
+            if (sorter?.field) {
+              setSortBy(sorter.field);
+              setSortOrder(sorter.order === "ascend" ? "ASC" : "DESC");
+            }
           }}
-          pagination={{ current: page, pageSize: limit, total: meta?.total ?? 0, showSizeChanger: true }}
+          pagination={{
+            current: page,
+            pageSize: limit,
+            total: meta?.total ?? 0,
+            showSizeChanger: true,
+          }}
           scroll={{ x: 800 }}
-          locale={{ emptyText: 'No classes found.' }}
+          locale={{ emptyText: "No classes found." }}
         />
       )}
     </>
-  )
+  );
 }
 
-// SECTIONS TAB 
+// SECTIONS TAB
 
 function SectionsTab({
-  canUpdate, onEdit, onView, onCountsChange,
+  canUpdate,
+  onEdit,
+  onView,
+  onCountsChange,
 }: {
-  canUpdate: boolean
-  onEdit: (s: Section) => void
-  onView: (s: Section) => void
-  onCountsChange: (counts: { total: number; active: number }) => void
+  canUpdate: boolean;
+  onEdit: (s: Section) => void;
+  onView: (s: Section) => void;
+  onCountsChange: (counts: { total: number; active: number }) => void;
 }) {
-  const [q, setQ] = useState('')
-  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({})
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(10)
-  const [sortBy, setSortBy] = useState('name')
-  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('ASC')
+  const [q, setQ] = useState("");
+  const [filterValues, setFilterValues] = useState<
+    Record<string, string | undefined>
+  >({});
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [sortBy, setSortBy] = useState("name");
+  const [sortOrder, setSortOrder] = useState<"ASC" | "DESC">("ASC");
 
-  const statusFilter = filterValues['status']
-  const classId      = filterValues['classId']
-
-  // Academic years for classId filter — need classes list per year
-  const { data: academicYearsResponse } = useGet<ApiPaginatedResponse<AcademicYear>>(
-    `${ENDPOINTS.ACADEMIC_YEARS.LIST}?limit=50&sortBy=startDate&sortOrder=DESC`,
-  )
-  const academicYears = academicYearsResponse?.data ?? []
-
-  const filterAcademicYearId = filterValues['academicYearId']
+  const statusFilter = filterValues["status"];
+  const classId = filterValues["classId"];
 
   // Classes for the classId filter dropdown
   const { data: classesResponse } = useGet<ApiPaginatedResponse<SchoolClass>>(
-    `${ENDPOINTS.CLASSES.BASE}?limit=100&status=ACTIVE${filterAcademicYearId ? `&academicYearId=${filterAcademicYearId}` : ''}`,
-    Boolean(filterAcademicYearId),
-  )
-  const classesForFilter = classesResponse?.data ?? []
+    `${ENDPOINTS.CLASSES.BASE}?limit=100&status=ACTIVE`,
+  );
+  const classesForFilter = classesResponse?.data ?? [];
 
-  const queryParams = new URLSearchParams({ page: page.toString(), limit: limit.toString(), sortBy, sortOrder })
-  if (q)            queryParams.append('search', q)
-  if (statusFilter) queryParams.append('status', statusFilter)
-  if (classId)      queryParams.append('classId', classId)
+  const queryParams = new URLSearchParams({
+    page: page.toString(),
+    limit: limit.toString(),
+    sortBy,
+    sortOrder,
+  });
+  if (q) queryParams.append("search", q);
+  if (statusFilter) queryParams.append("status", statusFilter);
+  if (classId) queryParams.append("classId", classId);
 
-  const queryKey = `${ENDPOINTS.SECTIONS.BASE}?${queryParams.toString()}`
-  const { data: listResponse, isLoading, isFetching } = useGet<ApiPaginatedResponse<Section>>(queryKey)
+  const queryKey = `${ENDPOINTS.SECTIONS.BASE}?${queryParams.toString()}`;
+  const {
+    data: listResponse,
+    isLoading,
+    isFetching,
+  } = useGet<ApiPaginatedResponse<Section>>(queryKey);
 
-  const rows = listResponse?.data ?? []
-  const meta = listResponse?.meta
+  const rows = listResponse?.data ?? [];
+  const meta = listResponse?.meta;
 
   useEffect(() => {
-    onCountsChange({ total: meta?.total ?? 0, active: rows.filter((s) => s.status === 'ACTIVE').length })
-  }, [rows, meta?.total])
+    onCountsChange({
+      total: meta?.total ?? 0,
+      active: rows.filter((s) => s.status === "ACTIVE").length,
+    });
+  }, [rows, meta?.total]);
 
   const filterColumns = [
-    { key: 'name', title: 'Section', isSearchable: true },
+    { key: "name", title: "Section", isSearchable: true },
     {
-      key: 'academicYearId',
-      title: 'Academic Year',
+      key: "classId",
+      title: "Class",
       isFilterable: true,
-      filterWidth: 200,
-      filterOptions: academicYears.map((y) => ({
-        label: `${y.name}${y.status === 'CURRENT' ? ' (Current)' : ''}`,
-        value: y.id,
+      filterWidth: 180,
+      filterOptions: classesForFilter.map((c) => ({
+        label: c.name,
+        value: c.id,
       })),
     },
     {
-      key: 'classId',
-      title: 'Class',
-      isFilterable: true,
-      filterWidth: 180,
-      filterOptions: classesForFilter.map((c) => ({ label: c.name, value: c.id })),
-    },
-    {
-      key: 'status',
-      title: 'Status',
+      key: "status",
+      title: "Status",
       isFilterable: true,
       filterWidth: 130,
       filterOptions: [
-        { label: 'Active',   value: 'ACTIVE' },
-        { label: 'Inactive', value: 'INACTIVE' },
+        { label: "Active", value: "ACTIVE" },
+        { label: "Inactive", value: "INACTIVE" },
       ],
     },
-  ]
+  ];
 
   const columns: ColumnsType<Section> = [
     {
-      title: 'Section',
-      key: 'section',
+      title: "Section",
+      key: "section",
       sorter: true,
       render: (_: unknown, s: Section) => (
         <Space>
-          <Avatar size={32} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 13 }}>
+          <Avatar
+            size={32}
+            style={{
+              background: colors.primaryLight,
+              color: colors.primary,
+              fontWeight: 700,
+              fontSize: 13,
+            }}
+          >
             {s.name}
           </Avatar>
           <span style={{ fontWeight: 500 }}>Section {s.name}</span>
@@ -500,49 +709,68 @@ function SectionsTab({
       ),
     },
     {
-      title: 'Code',
-      dataIndex: 'code',
-      render: (v: string) => <span style={{ fontFamily: 'monospace' }}>{v}</span>,
+      title: "Code",
+      dataIndex: "code",
+      render: (v: string) => (
+        <span style={{ fontFamily: "monospace" }}>{v}</span>
+      ),
     },
     {
-      title: 'Class',
-      key: 'class',
-      render: (_: unknown, s: Section) => s.class?.name ?? '—',
+      title: "Class",
+      key: "class",
+      render: (_: unknown, s: Section) => s.class?.name ?? "—",
     },
     {
-      title: 'Capacity',
-      dataIndex: 'capacity',
+      title: "Capacity",
+      dataIndex: "capacity",
       width: 100,
-      render: (v: number | null) => v != null ? v : <span style={{ color: colors.muted }}>—</span>,
+      render: (v: number | null) =>
+        v != null ? v : <span style={{ color: colors.muted }}>—</span>,
     },
     {
-      title: 'Status',
-      dataIndex: 'status',
+      title: "Status",
+      dataIndex: "status",
       width: 110,
       render: (v: string) => <StatusBadge status={v} />,
     },
     {
-      title: 'Actions',
-      key: 'actions',
-      fixed: 'right',
+      title: "Actions",
+      key: "actions",
+      fixed: "right",
       width: 90,
-      align: 'center',
+      align: "center",
       render: (_: unknown, s: Section) => (
         <Space size={6} onClick={(e) => e.stopPropagation()}>
-          <Button type="default" size="small" icon={<EyeOutlined />} title="View Details"
+          <Button
+            type="default"
+            size="small"
+            icon={<EyeOutlined />}
+            title="View Details"
             onClick={() => onView(s)}
-            style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
+            style={{
+              borderRadius: radius.sm,
+              borderColor: colors.border,
+              color: colors.muted,
+            }}
           />
           {canUpdate && (
-            <Button type="default" size="small" icon={<EditOutlined />} title="Edit"
+            <Button
+              type="default"
+              size="small"
+              icon={<EditOutlined />}
+              title="Edit"
               onClick={() => onEdit(s)}
-              style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
+              style={{
+                borderRadius: radius.sm,
+                borderColor: colors.border,
+                color: colors.muted,
+              }}
             />
           )}
         </Space>
       ),
     },
-  ]
+  ];
 
   return (
     <>
@@ -554,16 +782,26 @@ function SectionsTab({
         filterValues={filterValues}
         onFilterChange={(key, value) => {
           // Clearing academic year should also clear classId
-          if (key === 'academicYearId') {
-            setFilterValues((prev) => ({ ...prev, academicYearId: value, classId: undefined }))
+          if (key === "academicYearId") {
+            setFilterValues((prev) => ({
+              ...prev,
+              classId: undefined,
+            }));
           } else {
-            setFilterValues((prev) => ({ ...prev, [key]: value }))
+            setFilterValues((prev) => ({ ...prev, [key]: value }));
           }
-          setPage(1)
+          setPage(1);
         }}
       />
       {isLoading ? (
-        <div style={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 12, overflow: 'hidden' }}>
+        <div
+          style={{
+            backgroundColor: colors.surface,
+            border: `1px solid ${colors.border}`,
+            borderRadius: 12,
+            overflow: "hidden",
+          }}
+        >
           <TableSkeleton rows={Math.min(limit, 5)} columns={5} />
         </div>
       ) : (
@@ -574,244 +812,354 @@ function SectionsTab({
           loading={isFetching}
           onRowClick={(s) => onView(s)}
           onChange={(pagination, _filters, sorter: any) => {
-            setPage(pagination.current || 1)
-            setLimit(pagination.pageSize || 10)
-            if (sorter?.field) { setSortBy(sorter.field); setSortOrder(sorter.order === 'ascend' ? 'ASC' : 'DESC') }
+            setPage(pagination.current || 1);
+            setLimit(pagination.pageSize || 10);
+            if (sorter?.field) {
+              setSortBy(sorter.field);
+              setSortOrder(sorter.order === "ascend" ? "ASC" : "DESC");
+            }
           }}
-          pagination={{ current: page, pageSize: limit, total: meta?.total ?? 0, showSizeChanger: true }}
+          pagination={{
+            current: page,
+            pageSize: limit,
+            total: meta?.total ?? 0,
+            showSizeChanger: true,
+          }}
           scroll={{ x: 800 }}
-          locale={{ emptyText: 'No sections found.' }}
+          locale={{ emptyText: "No sections found." }}
         />
       )}
     </>
-  )
+  );
 }
 
-//  CLASS FORM DRAWER 
+//  CLASS FORM DRAWER
 
 type ClassFormValues = {
-  name: string
-  academicYearId: string
-  status: 'ACTIVE' | 'INACTIVE'
-}
+  name: string;
+  academicYearId: string;
+  status: "ACTIVE" | "INACTIVE";
+};
 
-function ClassFormDrawer({ open, academicYearId, editing, onClose }: {
-  open: boolean
-  academicYearId: string | undefined
-  editing: SchoolClass | null
-  onClose: () => void
+function ClassFormDrawer({
+  open,
+  academicYearId,
+  editing,
+  onClose,
+}: {
+  open: boolean;
+  academicYearId: string | undefined;
+  editing: SchoolClass | null;
+  onClose: () => void;
 }) {
-  const qc = useQueryClient()
-  const [form] = Form.useForm<ClassFormValues>()
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const isEditing = Boolean(editing)
+  const qc = useQueryClient();
+  const [form] = Form.useForm<ClassFormValues>();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEditing = Boolean(editing);
 
-  const { data: academicYearsResponse } = useGet<ApiPaginatedResponse<AcademicYear>>(
+  const { data: academicYearsResponse } = useGet<
+    ApiPaginatedResponse<AcademicYear>
+  >(
     `${ENDPOINTS.ACADEMIC_YEARS.LIST}?limit=50&sortBy=startDate&sortOrder=DESC`,
-  )
-  const academicYears = academicYearsResponse?.data ?? []
+  );
+  const academicYears = academicYearsResponse?.data ?? [];
 
   const invalidateClasses = () =>
-    qc.invalidateQueries({ predicate: classesQueryPredicate(academicYearId) })
+    qc.invalidateQueries({ predicate: classesQueryPredicate(academicYearId) });
 
   const onOpen = () => {
     if (editing) {
-      form.setFieldsValue({ name: editing.name, status: editing.status, academicYearId: editing.academicYearId })
+      form.setFieldsValue({
+        name: editing.name,
+        status: editing.status,
+        academicYearId: editing.academicYearId,
+      });
     } else {
-      form.resetFields()
-      form.setFieldsValue({ status: 'ACTIVE', ...(academicYearId ? { academicYearId } : {}) })
+      form.resetFields();
+      form.setFieldsValue({
+        status: "ACTIVE",
+        ...(academicYearId ? { academicYearId } : {}),
+      });
     }
-  }
+  };
 
   const onSubmit = async () => {
     try {
-      const values = await form.validateFields()
-      setIsSubmitting(true)
-      const payload = { name: values.name.trim(), status: values.status, academicYearId: values.academicYearId }
+      const values = await form.validateFields();
+      setIsSubmitting(true);
+      const payload = {
+        name: values.name.trim(),
+        status: values.status,
+        academicYearId: values.academicYearId,
+      };
       if (isEditing && editing) {
-        await client.patch<ApiResponse<SchoolClass>>(ENDPOINTS.CLASSES.DETAIL(editing.id), payload)
-        toast.success(`${values.name} updated`)
+        await client.patch<ApiResponse<SchoolClass>>(
+          ENDPOINTS.CLASSES.DETAIL(editing.id),
+          payload,
+        );
+        toast.success(`${values.name} updated`);
       } else {
-        await client.post<ApiResponse<SchoolClass>>(ENDPOINTS.CLASSES.BASE, payload)
-        toast.success(`${values.name} created`)
+        await client.post<ApiResponse<SchoolClass>>(
+          ENDPOINTS.CLASSES.BASE,
+          payload,
+        );
+        toast.success(`${values.name} created`);
       }
-      invalidateClasses()
-      form.resetFields()
-      onClose()
+      invalidateClasses();
+      form.resetFields();
+      onClose();
     } catch (err: any) {
-      if (err?.errorFields) return
-      toast.error(err?.message || 'Operation failed')
+      if (err?.errorFields) return;
+      toast.error(err?.message || "Operation failed");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <Drawer
-      title={isEditing ? 'Edit Class' : 'Add Class'}
+      title={isEditing ? "Edit Class" : "Add Class"}
       open={open}
-      onClose={() => { form.resetFields(); onClose() }}
+      onClose={() => {
+        form.resetFields();
+        onClose();
+      }}
       size={DRAWER.width}
       afterOpenChange={(v) => v && onOpen()}
       extra={
         <Space>
-          <Button onClick={() => { form.resetFields(); onClose() }}>Cancel</Button>
-          <Button type="primary" style={{ background: colors.primary }} loading={isSubmitting} onClick={onSubmit}>
-            {isEditing ? 'Save Changes' : 'Create Class'}
+          <Button
+            onClick={() => {
+              form.resetFields();
+              onClose();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="primary"
+            style={{ background: colors.primary }}
+            loading={isSubmitting}
+            onClick={onSubmit}
+          >
+            {isEditing ? "Save Changes" : "Create Class"}
           </Button>
         </Space>
       }
     >
       <Form form={form} layout="vertical" requiredMark="optional">
-        <Typography.Text strong style={{ fontSize: 13 }}>Class Information</Typography.Text>
-        <p style={{ margin: '4px 0 16px', fontSize: 12, color: colors.muted }}>Basic details that identify this class.</p>
+        <Typography.Text strong style={{ fontSize: 13 }}>
+          Class Information
+        </Typography.Text>
+        <p style={{ margin: "4px 0 16px", fontSize: 12, color: colors.muted }}>
+          Basic details that identify this class.
+        </p>
 
-        <Form.Item name="name" label="Class Name"
-          rules={[{ required: true, message: 'Class name is required' }, { max: 100, message: 'Max 100 characters' }]}>
+        <Form.Item
+          name="name"
+          label="Class Name"
+          rules={[
+            { required: true, message: "Class name is required" },
+            { max: 100, message: "Max 100 characters" },
+          ]}
+        >
           <Input placeholder="e.g. Class 1, Grade 10, Nursery" />
         </Form.Item>
 
-        <Form.Item name="academicYearId" label="Academic Year"
-          rules={[{ required: true, message: 'Academic year is required' }]}>
+        <Form.Item
+          name="academicYearId"
+          label="Academic Year"
+          rules={[{ required: true, message: "Academic year is required" }]}
+        >
           <Select
             placeholder="Select academic year"
             options={academicYears.map((y) => ({
-              label: `${y.name}${y.status === 'CURRENT' ? ' (Current)' : ''}`,
+              label: `${y.name}${y.status === "CURRENT" ? " (Current)" : ""}`,
               value: y.id,
             }))}
           />
         </Form.Item>
 
-        <Typography.Text strong style={{ fontSize: 13 }}>Configuration</Typography.Text>
+        <Typography.Text strong style={{ fontSize: 13 }}>
+          Configuration
+        </Typography.Text>
         <div style={{ marginTop: 12 }}>
           <Form.Item name="status" label="Status" rules={[{ required: true }]}>
-            <Select options={[{ label: 'Active', value: 'ACTIVE' }, { label: 'Inactive', value: 'INACTIVE' }]} />
+            <Select
+              options={[
+                { label: "Active", value: "ACTIVE" },
+                { label: "Inactive", value: "INACTIVE" },
+              ]}
+            />
           </Form.Item>
         </div>
       </Form>
     </Drawer>
-  )
+  );
 }
 
-//  SECTION FORM DRAWER 
+//  SECTION FORM DRAWER
 
 type SectionFormValues = {
-  classId: string
-  name: string
-  capacity: number | null
-  status: 'ACTIVE' | 'INACTIVE'
-}
+  classId: string;
+  name: string;
+  capacity: number | null;
+  status: "ACTIVE" | "INACTIVE";
+};
 
-function SectionFormDrawer({ open, editing, onClose }: {
-  open: boolean
-  academicYearId: string | undefined
-  editing: Partial<Section> | null
-  onClose: () => void
+function SectionFormDrawer({
+  open,
+  editing,
+  onClose,
+}: {
+  open: boolean;
+  academicYearId: string | undefined;
+  editing: Partial<Section> | null;
+  onClose: () => void;
 }) {
-  const qc = useQueryClient()
-  const [form] = Form.useForm<SectionFormValues>()
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const isEditing = Boolean(editing?.id)
+  const qc = useQueryClient();
+  const [form] = Form.useForm<SectionFormValues>();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEditing = Boolean(editing?.id);
 
   // Fetch all active classes once — response includes nested academicYear
   const { data: classesResponse } = useGet<ApiPaginatedResponse<SchoolClass>>(
     `${ENDPOINTS.CLASSES.BASE}?limit=100&status=ACTIVE`,
-  )
-  const allActiveClasses = classesResponse?.data ?? []
+  );
+  const allActiveClasses = classesResponse?.data ?? [];
 
   // Derive unique academic years from the classes response
-  const academicYearsFromClasses = allActiveClasses.reduce<AcademicYear[]>((acc, c) => {
-    if (c.academicYear && !acc.find((y) => y.id === c.academicYear!.id)) {
-      acc.push(c.academicYear)
-    }
-    return acc
-  }, [])
+  const academicYearsFromClasses = allActiveClasses.reduce<AcademicYear[]>(
+    (acc, c) => {
+      if (c.academicYear && !acc.find((y) => y.id === c.academicYear!.id)) {
+        acc.push(c.academicYear);
+      }
+      return acc;
+    },
+    [],
+  );
 
   // Default to CURRENT year; user can change
-  const [selectedYearId, setSelectedYearId] = useState<string | undefined>(undefined)
+  const [selectedYearId, setSelectedYearId] = useState<string | undefined>(
+    undefined,
+  );
 
   // Derive the effective year: use what user picked, else the CURRENT one from the list
-  const currentYear = academicYearsFromClasses.find((y) => y.status === 'CURRENT')
-  const effectiveYearId = selectedYearId ?? currentYear?.id ?? academicYearsFromClasses[0]?.id
+  const currentYear = academicYearsFromClasses.find(
+    (y) => y.status === "CURRENT",
+  );
+  const effectiveYearId =
+    selectedYearId ?? currentYear?.id ?? academicYearsFromClasses[0]?.id;
 
   // Classes filtered by selected academic year
-  const activeClasses = allActiveClasses.filter((c) => c.academicYear?.id === effectiveYearId)
+  const activeClasses = allActiveClasses.filter(
+    (c) => c.academicYear?.id === effectiveYearId,
+  );
 
   // When opened from a class row, fetch that class to show its name
-  const presetClassId = !isEditing ? editing?.classId : undefined
+  const presetClassId = !isEditing ? editing?.classId : undefined;
   const { data: presetClassResponse } = useGet<ApiResponse<SchoolClass>>(
-    ENDPOINTS.CLASSES.DETAIL(presetClassId ?? ''),
+    ENDPOINTS.CLASSES.DETAIL(presetClassId ?? ""),
     Boolean(presetClassId),
-  )
-  const presetClass = presetClassResponse?.data
+  );
+  const presetClass = presetClassResponse?.data;
 
   const invalidateSections = () =>
-    qc.invalidateQueries({ predicate: sectionsQueryPredicate(editing?.classId) })
+    qc.invalidateQueries({
+      predicate: sectionsQueryPredicate(editing?.classId),
+    });
 
   const onOpen = () => {
-    setSelectedYearId(undefined) // reset to default (CURRENT) each time drawer opens
+    setSelectedYearId(undefined); // reset to default (CURRENT) each time drawer opens
     if (editing?.id) {
       form.setFieldsValue({
-        classId:  editing.classId,
-        name:     editing.name,
+        classId: editing.classId,
+        name: editing.name,
         capacity: editing.capacity ?? null,
-        status:   editing.status ?? 'ACTIVE',
-      })
+        status: editing.status ?? "ACTIVE",
+      });
     } else if (editing?.classId) {
-      form.resetFields()
-      form.setFieldsValue({ classId: editing.classId, status: 'ACTIVE' })
+      form.resetFields();
+      form.setFieldsValue({ classId: editing.classId, status: "ACTIVE" });
     } else {
-      form.resetFields()
-      form.setFieldsValue({ status: 'ACTIVE' })
+      form.resetFields();
+      form.setFieldsValue({ status: "ACTIVE" });
     }
-  }
+  };
 
   const onSubmit = async () => {
     try {
-      const values = await form.validateFields()
-      setIsSubmitting(true)
+      const values = await form.validateFields();
+      setIsSubmitting(true);
 
       if (isEditing && editing?.id) {
-        const patch = { name: values.name, capacity: values.capacity ?? null, status: values.status }
-        await client.patch<ApiResponse<Section>>(ENDPOINTS.SECTIONS.DETAIL(editing.id), patch)
-        toast.success(`Section ${values.name} updated`)
+        const patch = {
+          name: values.name,
+          capacity: values.capacity ?? null,
+          status: values.status,
+        };
+        await client.patch<ApiResponse<Section>>(
+          ENDPOINTS.SECTIONS.DETAIL(editing.id),
+          patch,
+        );
+        toast.success(`Section ${values.name} updated`);
       } else {
-        const payload = { classId: values.classId, name: values.name }
-        await client.post<ApiResponse<Section>>(ENDPOINTS.SECTIONS.BASE, payload)
-        toast.success(`Section ${values.name} created`)
+        const payload = { classId: values.classId, name: values.name };
+        await client.post<ApiResponse<Section>>(
+          ENDPOINTS.SECTIONS.BASE,
+          payload,
+        );
+        toast.success(`Section ${values.name} created`);
       }
 
-      invalidateSections()
-      qc.invalidateQueries({ predicate: sectionsQueryPredicate() })
-      form.resetFields()
-      onClose()
+      invalidateSections();
+      qc.invalidateQueries({ predicate: sectionsQueryPredicate() });
+      form.resetFields();
+      onClose();
     } catch (err: any) {
-      if (err?.errorFields) return
-      toast.error(err?.message || 'Operation failed')
+      if (err?.errorFields) return;
+      toast.error(err?.message || "Operation failed");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <Drawer
-      title={isEditing ? 'Edit Section' : 'Add Section'}
+      title={isEditing ? "Edit Section" : "Add Section"}
       open={open}
-      onClose={() => { form.resetFields(); onClose() }}
+      onClose={() => {
+        form.resetFields();
+        onClose();
+      }}
       size={DRAWER.width}
       afterOpenChange={(v) => v && onOpen()}
       extra={
         <Space>
-          <Button onClick={() => { form.resetFields(); onClose() }}>Cancel</Button>
-          <Button type="primary" style={{ background: colors.primary }} loading={isSubmitting} onClick={onSubmit}>
-            {isEditing ? 'Save Changes' : 'Create Section'}
+          <Button
+            onClick={() => {
+              form.resetFields();
+              onClose();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="primary"
+            style={{ background: colors.primary }}
+            loading={isSubmitting}
+            onClick={onSubmit}
+          >
+            {isEditing ? "Save Changes" : "Create Section"}
           </Button>
         </Space>
       }
     >
       <Form form={form} layout="vertical" requiredMark="optional">
-        <Typography.Text strong style={{ fontSize: 13 }}>Assignment</Typography.Text>
-        <p style={{ margin: '4px 0 12px', fontSize: 12, color: colors.muted }}>
+        <Typography.Text strong style={{ fontSize: 13 }}>
+          Assignment
+        </Typography.Text>
+        <p style={{ margin: "4px 0 12px", fontSize: 12, color: colors.muted }}>
           Select the class this section belongs to.
         </p>
 
@@ -821,9 +1169,9 @@ function SectionFormDrawer({ open, editing, onClose }: {
             <Input
               disabled
               value={
-                editing?.class?.name
-                  ?? activeClasses.find((c) => c.id === editing?.classId)?.name
-                  ?? '—'
+                editing?.class?.name ??
+                activeClasses.find((c) => c.id === editing?.classId)?.name ??
+                "—"
               }
             />
           </Form.Item>
@@ -832,7 +1180,7 @@ function SectionFormDrawer({ open, editing, onClose }: {
           <Form.Item label="Class">
             <Input
               disabled
-              value={presetClass?.name ?? editing.class?.name ?? '—'}
+              value={presetClass?.name ?? editing.class?.name ?? "—"}
             />
           </Form.Item>
         ) : (
@@ -841,43 +1189,74 @@ function SectionFormDrawer({ open, editing, onClose }: {
             <Form.Item label="Filter by Academic Year">
               <Select
                 value={effectiveYearId}
-                onChange={(v) => { setSelectedYearId(v); form.setFieldValue('classId', undefined) }}
+                onChange={(v) => {
+                  setSelectedYearId(v);
+                  form.setFieldValue("classId", undefined);
+                }}
                 options={academicYearsFromClasses.map((y) => ({
-                  label: `${y.name}${y.status === 'CURRENT' ? ' (Current)' : ''}`,
+                  label: `${y.name}${y.status === "CURRENT" ? " (Current)" : ""}`,
                   value: y.id,
                 }))}
               />
             </Form.Item>
-            <Form.Item name="classId" label="Class" rules={[{ required: true, message: 'Class is required' }]}>
+            <Form.Item
+              name="classId"
+              label="Class"
+              rules={[{ required: true, message: "Class is required" }]}
+            >
               <Select
                 placeholder="Select class"
                 showSearch
                 filterOption={(input, opt) =>
-                  (opt?.label as string ?? '').toLowerCase().includes(input.toLowerCase())
+                  ((opt?.label as string) ?? "")
+                    .toLowerCase()
+                    .includes(input.toLowerCase())
                 }
-                options={activeClasses.map((c) => ({ label: c.name, value: c.id }))}
+                options={activeClasses.map((c) => ({
+                  label: c.name,
+                  value: c.id,
+                }))}
               />
             </Form.Item>
           </>
         )}
 
-        <Typography.Text strong style={{ fontSize: 13 }}>Section Details</Typography.Text>
+        <Typography.Text strong style={{ fontSize: 13 }}>
+          Section Details
+        </Typography.Text>
         <div style={{ marginTop: 12 }}>
-          <Form.Item name="name" label="Section Name"
-            rules={[{ required: true, message: 'Section name is required' }]}>
+          <Form.Item
+            name="name"
+            label="Section Name"
+            rules={[{ required: true, message: "Section name is required" }]}
+          >
             <Input placeholder="e.g. A, B, Crimson" />
           </Form.Item>
 
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="capacity" label="Capacity">
-                <InputNumber min={1} max={200} style={{ width: '100%' }} placeholder="e.g. 40" />
+                <InputNumber
+                  min={1}
+                  max={200}
+                  style={{ width: "100%" }}
+                  placeholder="e.g. 40"
+                />
               </Form.Item>
             </Col>
             {isEditing && (
               <Col span={12}>
-                <Form.Item name="status" label="Status" rules={[{ required: true }]}>
-                  <Select options={[{ label: 'Active', value: 'ACTIVE' }, { label: 'Inactive', value: 'INACTIVE' }]} />
+                <Form.Item
+                  name="status"
+                  label="Status"
+                  rules={[{ required: true }]}
+                >
+                  <Select
+                    options={[
+                      { label: "Active", value: "ACTIVE" },
+                      { label: "Inactive", value: "INACTIVE" },
+                    ]}
+                  />
                 </Form.Item>
               </Col>
             )}
@@ -885,56 +1264,91 @@ function SectionFormDrawer({ open, editing, onClose }: {
         </div>
       </Form>
     </Drawer>
-  )
+  );
 }
 
 //  CLASS DETAIL DRAWER
 
 function ClassDetailDrawer({
-  schoolClass, canUpdate, canCreateSection,
-  onClose, onEdit, onAddSection, onViewSection,
+  schoolClass,
+  canUpdate,
+  canCreateSection,
+  onClose,
+  onEdit,
+  onAddSection,
+  onViewSection,
 }: {
-  schoolClass: SchoolClass | null
-  canUpdate: boolean
-  canCreateSection: boolean
-  onClose: () => void
-  onEdit: (c: SchoolClass) => void
-  onAddSection: (c: SchoolClass) => void
-  onViewSection: (s: Section) => void
+  schoolClass: SchoolClass | null;
+  canUpdate: boolean;
+  canCreateSection: boolean;
+  onClose: () => void;
+  onEdit: (c: SchoolClass) => void;
+  onAddSection: (c: SchoolClass) => void;
+  onViewSection: (s: Section) => void;
 }) {
   // Fetch sections for this class from the real API
   const { data: sectionsResponse } = useGet<ApiPaginatedResponse<Section>>(
     `${ENDPOINTS.SECTIONS.BASE}?classId=${schoolClass?.id}&limit=100`,
     Boolean(schoolClass?.id),
-  )
-  const sections = sectionsResponse?.data ?? []
-  const totalCap = sections.reduce((sum, s) => sum + (s.capacity ?? 0), 0)
+  );
+  const sections = sectionsResponse?.data ?? [];
+  const totalCap = sections.reduce((sum, s) => sum + (s.capacity ?? 0), 0);
 
-  if (!schoolClass) return null
+  if (!schoolClass) return null;
 
   const sectionColumns: ColumnsType<Section> = [
     {
-      title: 'Section',
-      key: 'section',
+      title: "Section",
+      key: "section",
       render: (_: unknown, s: Section) => (
         <Space>
-          <Avatar size={28} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 12 }}>
+          <Avatar
+            size={28}
+            style={{
+              background: colors.primaryLight,
+              color: colors.primary,
+              fontWeight: 700,
+              fontSize: 12,
+            }}
+          >
             {s.name}
           </Avatar>
           <span>Section {s.name}</span>
         </Space>
       ),
     },
-    { title: 'Code',     dataIndex: 'code',     render: (v: string)        => <span style={{ fontFamily: 'monospace' }}>{v}</span> },
-    { title: 'Capacity', dataIndex: 'capacity', render: (v: number | null) => v ?? '—' },
-    { title: 'Status',   dataIndex: 'status',   render: (v: string)        => <StatusBadge status={v} /> },
-  ]
+    {
+      title: "Code",
+      dataIndex: "code",
+      render: (v: string) => (
+        <span style={{ fontFamily: "monospace" }}>{v}</span>
+      ),
+    },
+    {
+      title: "Capacity",
+      dataIndex: "capacity",
+      render: (v: number | null) => v ?? "—",
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      render: (v: string) => <StatusBadge status={v} />,
+    },
+  ];
 
   return (
     <Drawer
       title={
         <Space>
-          <Avatar size={36} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 13 }}>
+          <Avatar
+            size={36}
+            style={{
+              background: colors.primaryLight,
+              color: colors.primary,
+              fontWeight: 700,
+              fontSize: 13,
+            }}
+          >
             {initials(schoolClass.name)}
           </Avatar>
           <span>{schoolClass.name}</span>
@@ -946,12 +1360,20 @@ function ClassDetailDrawer({
       extra={
         <Space>
           {canCreateSection && (
-            <Button icon={<PlusOutlined />} onClick={() => onAddSection(schoolClass)}>
+            <Button
+              icon={<PlusOutlined />}
+              onClick={() => onAddSection(schoolClass)}
+            >
               Add Section
             </Button>
           )}
           {canUpdate && (
-            <Button type="primary" icon={<EditOutlined />} style={{ background: colors.primary }} onClick={() => onEdit(schoolClass)}>
+            <Button
+              type="primary"
+              icon={<EditOutlined />}
+              style={{ background: colors.primary }}
+              onClick={() => onEdit(schoolClass)}
+            >
               Edit Class
             </Button>
           )}
@@ -960,31 +1382,81 @@ function ClassDetailDrawer({
     >
       <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
         {[
-          { label: 'Sections',       value: sections.length, icon: <AppstoreOutlined />, color: colors.primary, bg: colors.primaryLight },
-          { label: 'Total Capacity', value: totalCap || '—', icon: <TeamOutlined />,     color: colors.info,    bg: colors.infoLight },
+          {
+            label: "Sections",
+            value: sections.length,
+            icon: <AppstoreOutlined />,
+            color: colors.primary,
+            bg: colors.primaryLight,
+          },
+          {
+            label: "Total Capacity",
+            value: totalCap || "—",
+            icon: <TeamOutlined />,
+            color: colors.info,
+            bg: colors.infoLight,
+          },
         ].map((k) => (
           <Col key={k.label} span={12}>
-            <StatCard variant="compact" size="small" label={k.label} value={k.value} icon={k.icon} color={k.color} iconBg={k.bg} />
+            <StatCard
+              variant="compact"
+              size="small"
+              label={k.label}
+              value={k.value}
+              icon={k.icon}
+              color={k.color}
+              iconBg={k.bg}
+            />
           </Col>
         ))}
       </Row>
 
-      <Descriptions bordered size="small" column={2} style={{ marginBottom: 20 }}>
-        <Descriptions.Item label="Academic Year">{schoolClass.academicYear?.name ?? '—'}</Descriptions.Item>
-        <Descriptions.Item label="Status"><StatusBadge status={schoolClass.status} /></Descriptions.Item>
-        <Descriptions.Item label="Class Code"><span style={{ fontFamily: 'monospace' }}>{schoolClass.code}</span></Descriptions.Item>
-        <Descriptions.Item label="Created">{new Date(schoolClass.createdAt).toLocaleDateString()}</Descriptions.Item>
+      <Descriptions
+        bordered
+        size="small"
+        column={2}
+        style={{ marginBottom: 20 }}
+      >
+        <Descriptions.Item label="Academic Year">
+          {schoolClass.academicYear?.name ?? "—"}
+        </Descriptions.Item>
+        <Descriptions.Item label="Status">
+          <StatusBadge status={schoolClass.status} />
+        </Descriptions.Item>
+        <Descriptions.Item label="Class Code">
+          <span style={{ fontFamily: "monospace" }}>{schoolClass.code}</span>
+        </Descriptions.Item>
+        <Descriptions.Item label="Created">
+          {new Date(schoolClass.createdAt).toLocaleDateString()}
+        </Descriptions.Item>
       </Descriptions>
 
-      <Typography.Title level={5} style={{ marginBottom: 12 }}>Sections</Typography.Title>
+      <Typography.Title level={5} style={{ marginBottom: 12 }}>
+        Sections
+      </Typography.Title>
 
       {sections.length === 0 ? (
-        <div style={{ padding: 32, textAlign: 'center', background: colors.surfaceAlt, borderRadius: 8, border: `1px solid ${colors.border}` }}>
-          <Typography.Text type="secondary">No sections configured for {schoolClass.name}.</Typography.Text>
+        <div
+          style={{
+            padding: 32,
+            textAlign: "center",
+            background: colors.surfaceAlt,
+            borderRadius: 8,
+            border: `1px solid ${colors.border}`,
+          }}
+        >
+          <Typography.Text type="secondary">
+            No sections configured for {schoolClass.name}.
+          </Typography.Text>
           {canCreateSection && (
             <div style={{ marginTop: 12 }}>
-              <Button type="primary" size="small" icon={<PlusOutlined />} style={{ background: colors.primary }}
-                onClick={() => onAddSection(schoolClass)}>
+              <Button
+                type="primary"
+                size="small"
+                icon={<PlusOutlined />}
+                style={{ background: colors.primary }}
+                onClick={() => onAddSection(schoolClass)}
+              >
                 Add Section
               </Button>
             </div>
@@ -997,67 +1469,110 @@ function ClassDetailDrawer({
           dataSource={sections}
           size="small"
           pagination={false}
-          onRow={(s) => ({ onClick: () => onViewSection(s), style: { cursor: 'pointer' } })}
+          onRow={(s) => ({
+            onClick: () => onViewSection(s),
+            style: { cursor: "pointer" },
+          })}
         />
       )}
     </Drawer>
-  )
+  );
 }
 
-//  SECTION DETAIL DRAWER 
+//  SECTION DETAIL DRAWER
 
-function SectionDetailDrawer({ section, canUpdate, onClose, onEdit }: {
-  section: Section | null
-  canUpdate: boolean
-  onClose: () => void
-  onEdit: (s: Section) => void
+function SectionDetailDrawer({
+  section,
+  canUpdate,
+  onClose,
+  onEdit,
+}: {
+  section: Section | null;
+  canUpdate: boolean;
+  onClose: () => void;
+  onEdit: (s: Section) => void;
 }) {
   // Fetch fresh section data to get populated class field
   const { data: sectionResponse } = useGet<ApiResponse<Section>>(
-    ENDPOINTS.SECTIONS.DETAIL(section?.id ?? ''),
+    ENDPOINTS.SECTIONS.DETAIL(section?.id ?? ""),
     Boolean(section?.id),
-  )
-  const detail = sectionResponse?.data ?? section
+  );
+  const detail = sectionResponse?.data ?? section;
 
   const teacher = detail?.classTeacherId
     ? MOCK_TEACHERS.find((t) => t.id === detail.classTeacherId)
-    : null
+    : null;
 
-  if (!section) return null
+  if (!section) return null;
 
   // Mock student columns — replace with real API when student module is ready
   const studentColumns: ColumnsType<MockStudent> = [
     {
-      title: 'Student',
-      key: 'student',
+      title: "Student",
+      key: "student",
       render: (_: unknown, s: MockStudent) => (
         <Space>
-          <Avatar size={28} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 600, fontSize: 11 }}>
+          <Avatar
+            size={28}
+            style={{
+              background: colors.primaryLight,
+              color: colors.primary,
+              fontWeight: 600,
+              fontSize: 11,
+            }}
+          >
             {initials(s.name)}
           </Avatar>
           <div>
             <div style={{ fontWeight: 500, fontSize: 13 }}>{s.name}</div>
-            <div style={{ fontFamily: 'monospace', fontSize: 11, color: colors.muted }}>{s.admissionNo}</div>
+            <div
+              style={{
+                fontFamily: "monospace",
+                fontSize: 11,
+                color: colors.muted,
+              }}
+            >
+              {s.admissionNo}
+            </div>
           </div>
         </Space>
       ),
     },
-    { title: 'Gender',  dataIndex: 'gender', width: 90 },
-    { title: 'Contact', dataIndex: 'phone',  render: (v: string) => <span style={{ fontFamily: 'monospace' }}>{v}</span> },
-    { title: 'Status',  dataIndex: 'status', width: 100, render: (v: string) => <StatusBadge status={v} /> },
-  ]
+    { title: "Gender", dataIndex: "gender", width: 90 },
+    {
+      title: "Contact",
+      dataIndex: "phone",
+      render: (v: string) => (
+        <span style={{ fontFamily: "monospace" }}>{v}</span>
+      ),
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      width: 100,
+      render: (v: string) => <StatusBadge status={v} />,
+    },
+  ];
 
   return (
     <Drawer
       title={
         <Space>
-          <Avatar size={36} style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 15 }}>
-            {detail?.name ?? ''}
+          <Avatar
+            size={36}
+            style={{
+              background: colors.primaryLight,
+              color: colors.primary,
+              fontWeight: 700,
+              fontSize: 15,
+            }}
+          >
+            {detail?.name ?? ""}
           </Avatar>
           <div>
             <div>Section {detail?.name}</div>
             <div style={{ fontSize: 12, color: colors.muted, fontWeight: 400 }}>
-              {detail?.class?.name ?? section.class?.name ?? '—'}
+              {detail?.class?.name ?? section.class?.name ?? "—"}
             </div>
           </div>
         </Space>
@@ -1067,7 +1582,12 @@ function SectionDetailDrawer({ section, canUpdate, onClose, onEdit }: {
       size={DRAWER.widthLg}
       extra={
         canUpdate && (
-          <Button type="primary" icon={<EditOutlined />} style={{ background: colors.primary }} onClick={() => onEdit(section)}>
+          <Button
+            type="primary"
+            icon={<EditOutlined />}
+            style={{ background: colors.primary }}
+            onClick={() => onEdit(section)}
+          >
             Edit Section
           </Button>
         )
@@ -1075,29 +1595,69 @@ function SectionDetailDrawer({ section, canUpdate, onClose, onEdit }: {
     >
       <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
         {[
-          { label: 'Capacity',        value: detail?.capacity ?? '—', icon: <TeamOutlined />, color: colors.info,    bg: colors.infoLight },
-          { label: 'Available Seats', value: detail?.capacity != null ? Math.max(0, detail.capacity) : '—',
-            icon: <UserOutlined />, color: colors.success, bg: colors.successLight },
+          {
+            label: "Capacity",
+            value: detail?.capacity ?? "—",
+            icon: <TeamOutlined />,
+            color: colors.info,
+            bg: colors.infoLight,
+          },
+          {
+            label: "Available Seats",
+            value:
+              detail?.capacity != null ? Math.max(0, detail.capacity) : "—",
+            icon: <UserOutlined />,
+            color: colors.success,
+            bg: colors.successLight,
+          },
         ].map((k) => (
           <Col key={k.label} span={12}>
-            <StatCard variant="compact" size="small" label={k.label} value={k.value} icon={k.icon} color={k.color} iconBg={k.bg} />
+            <StatCard
+              variant="compact"
+              size="small"
+              label={k.label}
+              value={k.value}
+              icon={k.icon}
+              color={k.color}
+              iconBg={k.bg}
+            />
           </Col>
         ))}
       </Row>
 
-      <Descriptions bordered size="small" column={2} style={{ marginBottom: 20 }}>
-        <Descriptions.Item label="Class">{detail?.class?.name ?? section.class?.name ?? '—'}</Descriptions.Item>
-        <Descriptions.Item label="Status"><StatusBadge status={detail?.status ?? section.status} /></Descriptions.Item>
+      <Descriptions
+        bordered
+        size="small"
+        column={2}
+        style={{ marginBottom: 20 }}
+      >
+        <Descriptions.Item label="Class">
+          {detail?.class?.name ?? section.class?.name ?? "—"}
+        </Descriptions.Item>
+        <Descriptions.Item label="Status">
+          <StatusBadge status={detail?.status ?? section.status} />
+        </Descriptions.Item>
         <Descriptions.Item label="Section Code">
-          <span style={{ fontFamily: 'monospace' }}>{detail?.code ?? section.code}</span>
+          <span style={{ fontFamily: "monospace" }}>
+            {detail?.code ?? section.code}
+          </span>
         </Descriptions.Item>
         <Descriptions.Item label="Created">
-          {new Date(detail?.createdAt ?? section.createdAt).toLocaleDateString()}
+          {new Date(
+            detail?.createdAt ?? section.createdAt,
+          ).toLocaleDateString()}
         </Descriptions.Item>
         <Descriptions.Item label="Class Teacher" span={2}>
           {teacher ? (
             <Space>
-              <Avatar size={22} style={{ background: colors.primaryLight, color: colors.primary, fontSize: 10 }}>
+              <Avatar
+                size={22}
+                style={{
+                  background: colors.primaryLight,
+                  color: colors.primary,
+                  fontSize: 10,
+                }}
+              >
                 {initials(teacher.name)}
               </Avatar>
               {teacher.name} — {teacher.department}
@@ -1109,10 +1669,22 @@ function SectionDetailDrawer({ section, canUpdate, onClose, onEdit }: {
       </Descriptions>
 
       {/* Students in this Section — mock data, replace with real API when student module is ready */}
-      <Typography.Title level={5} style={{ marginBottom: 12 }}>Students in this Section</Typography.Title>
+      <Typography.Title level={5} style={{ marginBottom: 12 }}>
+        Students in this Section
+      </Typography.Title>
       {MOCK_STUDENTS.length === 0 ? (
-        <div style={{ padding: 32, textAlign: 'center', background: colors.surfaceAlt, borderRadius: 8, border: `1px solid ${colors.border}` }}>
-          <Typography.Text type="secondary">No students assigned to this section.</Typography.Text>
+        <div
+          style={{
+            padding: 32,
+            textAlign: "center",
+            background: colors.surfaceAlt,
+            borderRadius: 8,
+            border: `1px solid ${colors.border}`,
+          }}
+        >
+          <Typography.Text type="secondary">
+            No students assigned to this section.
+          </Typography.Text>
         </div>
       ) : (
         <Table<MockStudent>
@@ -1125,5 +1697,5 @@ function SectionDetailDrawer({ section, canUpdate, onClose, onEdit }: {
         />
       )}
     </Drawer>
-  )
+  );
 }
