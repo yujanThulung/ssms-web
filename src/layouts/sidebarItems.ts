@@ -25,7 +25,7 @@ export const overview: SidebarItem[] = [
 ]
 
 export const people: SidebarItem[] = [
-  { title: 'Students', url: '/students', icon: GraduationCap, feature: FEATURES.STUDENT },
+  { title: 'Students', url: '/students', icon: GraduationCap, feature: FEATURES.STUDENT, alwaysVisible: true },
   { title: 'Users', url: '/users', icon: Users, feature: FEATURES.USER },
 ]
 

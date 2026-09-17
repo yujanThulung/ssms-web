@@ -21,7 +21,7 @@ const ClassSectionPage = lazy(() => import('../pages/class-section/ClassAndSecti
 // 2. All routes in one clean list
 const protectedRoutes = [
   { path: '', element: <DashboardPage /> },
-  { path: 'students', element: <StudentsPage />, feature: FEATURES.STUDENT },
+  { path: 'students', element: <StudentsPage /> },
   { path: 'users', element: <UsersPage />, feature: FEATURES.USER },
   { path: 'accounts', element: <AccountsPage />, feature: FEATURES.ACCOUNT },
   { path: 'academic-session', element: <AcademicSessionPage />, feature: FEATURES.ACADEMIC_YEAR },
