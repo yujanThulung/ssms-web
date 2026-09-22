@@ -11,20 +11,87 @@ const { Sider } = Layout
 
 type MenuItem = Required<MenuProps>['items'][number]
 
+/** Returns the set of parent keys whose children contain the active path. */
+function getOpenKeys(items: SidebarItem[], pathname: string): string[] {
+  const keys: string[] = []
+  for (const item of items) {
+    if (item.children?.some((c) => c.url === pathname)) {
+      keys.push(item.url)
+    }
+  }
+  return keys
+}
+
+function buildMenuItems(
+  items: SidebarItem[],
+  pathname: string,
+  can: (feature: string, action: string) => boolean,
+): MenuItem[] {
+  return items
+    .filter((item) => {
+      if (item.alwaysVisible) return true
+      if (!item.feature) return false
+      return can(item.feature, ACTIONS.VIEW)
+    })
+    .map((item) => {
+      // ── item with sub-menu 
+      if (item.children && item.children.length > 0) {
+        const visibleChildren = item.children.filter((c) =>
+          c.alwaysVisible ? true : can(c.feature, ACTIONS.VIEW),
+        )
+        const anyChildActive = visibleChildren.some((c) => c.url === pathname)
+        return {
+          key: item.url,
+          icon: <item.icon size={16} color={anyChildActive ? '#15803d' : '#374151'} />,
+          label: (
+            <span style={{ fontWeight: anyChildActive ? 600 : 500, color: anyChildActive ? '#15803d' : '#111827' }}>
+              {item.title}
+            </span>
+          ),
+          children: visibleChildren.map((child) => {
+            const active = pathname === child.url
+            return {
+              key: child.url,
+              icon: <child.icon size={14} color={active ? '#ffffff' : '#6b7280'} />,
+              label: child.title,
+              style: {
+                borderRadius: 8,
+                margin: '2px 0',
+                fontWeight: active ? 600 : 400,
+                backgroundColor: active ? '#16a34a' : 'transparent',
+                color: active ? '#ffffff' : '#374151',
+                fontSize: 13,
+              },
+            }
+          }),
+        }
+      }
+
+      //  leaf item 
+      const active = pathname === item.url
+      return {
+        key: item.url,
+        icon: <item.icon size={16} color={active ? '#ffffff' : '#374151'} />,
+        label: item.title,
+        style: {
+          borderRadius: 8,
+          margin: '2px 0',
+          fontWeight: active ? 600 : 500,
+          backgroundColor: active ? '#16a34a' : 'transparent',
+          color: active ? '#ffffff' : '#111827',
+        },
+      }
+    })
+}
+
 function getGroupItems(
   label: string,
   items: SidebarItem[],
   pathname: string,
   can: (feature: string, action: string) => boolean,
 ): MenuItem[] {
-  const visibleItems = items.filter((item) => {
-    if (item.alwaysVisible) return true
-    if (!item.feature) return false
-    return can(item.feature, ACTIONS.VIEW)
-  })
-
-
-  if (visibleItems.length === 0) return []
+  const children = buildMenuItems(items, pathname, can)
+  if (children.length === 0) return []
 
   return [
     {
@@ -40,21 +107,7 @@ function getGroupItems(
           {label}
         </span>
       ),
-      children: visibleItems.map((item) => {
-        const active = pathname === item.url
-        return {
-          key: item.url,
-          icon: <item.icon size={16} color={active ? '#ffffff' : '#374151'} />,
-          label: item.title,
-          style: {
-            borderRadius: 8,
-            margin: '2px 0',
-            fontWeight: active ? 600 : 500,
-            backgroundColor: active ? '#16a34a' : 'transparent',
-            color: active ? '#ffffff' : '#111827',
-          },
-        }
-      }),
+      children,
     },
   ]
 }
@@ -63,6 +116,10 @@ export default function AppSidebar({ collapsed }: { collapsed: boolean }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const { can } = usePermission()
+
+  // Collect all items from every group to find which sub-menus should be open
+  const allItems = [overview, people, accounts, masterSetup, system].flat()
+  const defaultOpenKeys = getOpenKeys(allItems, pathname)
 
   const sectionConfigs = [
     { label: 'Overview', items: overview },
@@ -89,7 +146,7 @@ export default function AppSidebar({ collapsed }: { collapsed: boolean }) {
       theme="light"
       collapsed={collapsed}
       collapsedWidth={80}
-      width={240}
+      width={260}
       style={{
         height: '100vh',
         position: 'sticky',
@@ -119,7 +176,6 @@ export default function AppSidebar({ collapsed }: { collapsed: boolean }) {
           flexShrink: 0,
           boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
         }}>
-          {/* <Landmark size={16} color="#ffffff" /> */}
           <img src={logo} alt="Logo" style={{ width: 50, height: 50 }} />
         </div>
         {!collapsed && (
@@ -139,6 +195,7 @@ export default function AppSidebar({ collapsed }: { collapsed: boolean }) {
         theme="light"
         mode="inline"
         selectedKeys={[pathname]}
+        defaultOpenKeys={defaultOpenKeys}
         inlineCollapsed={collapsed}
         onClick={({ key }) => navigate(key)}
         items={items}

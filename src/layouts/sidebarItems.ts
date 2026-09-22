@@ -7,6 +7,8 @@ import {
   Users,
   CalendarRange,
   BookOpen,
+  List,
+  ArrowUpCircle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { FEATURES } from '../utils'
@@ -17,6 +19,7 @@ export type SidebarItem = {
   icon: LucideIcon
   feature: string
   alwaysVisible?: boolean
+  children?: SidebarItem[]
 }
 
 // One item per section — expand later as features are built
@@ -25,7 +28,17 @@ export const overview: SidebarItem[] = [
 ]
 
 export const people: SidebarItem[] = [
-  { title: 'Students', url: '/students', icon: GraduationCap, feature: FEATURES.STUDENT, alwaysVisible: true },
+  {
+    title: 'Students',
+    url: '/students-group',
+    icon: GraduationCap,
+    feature: FEATURES.STUDENT,
+    alwaysVisible: true,
+    children: [
+      { title: 'All Students',      url: '/students',         icon: List,         feature: FEATURES.STUDENT, alwaysVisible: true },
+      { title: 'Promote Students',  url: '/students/promote', icon: ArrowUpCircle, feature: FEATURES.STUDENT, alwaysVisible: true },
+    ],
+  },
   { title: 'Users', url: '/users', icon: Users, feature: FEATURES.USER },
 ]
 
@@ -57,8 +70,13 @@ export const sidebarGroups: { label: string; items: SidebarItem[] }[] = [
 /** Looks up { group, title } for a given pathname, for breadcrumbs. */
 export function findNavEntry(pathname: string): { group: string; title: string } | null {
   for (const g of sidebarGroups) {
-    const item = g.items.find((i) => i.url === pathname)
-    if (item) return { group: g.label, title: item.title }
+    for (const item of g.items) {
+      if (item.url === pathname) return { group: g.label, title: item.title }
+      if (item.children) {
+        const child = item.children.find((c) => c.url === pathname)
+        if (child) return { group: g.label, title: child.title }
+      }
+    }
   }
   return null
 }

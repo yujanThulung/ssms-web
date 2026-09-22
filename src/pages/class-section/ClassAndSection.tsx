@@ -26,8 +26,6 @@ import {
   AppstoreOutlined,
 } from "@ant-design/icons";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
-import client from "../../lib/api/client";
 import { colors, DRAWER, radius } from "../../lib/designTokens";
 import { usePermission } from "../../context/PermissionContext";
 import { FEATURES, ACTIONS } from "../../utils/permissions";
@@ -37,8 +35,13 @@ import { SearchAndFilter } from "../../components/common/SearchAndFilter";
 import { StatCard } from "../../components/common/StatCard";
 import { ENDPOINTS } from "../../lib/api/endpoints";
 import { useGet } from "../../lib/api/hooks/useGet";
-import type { ApiPaginatedResponse, ApiResponse } from "../../lib/api/types";
-import type { SchoolClass, Section, AcademicYear } from "./types";
+import type { ApiPaginatedResponse } from "../../lib/api/types";
+import { useAcademicYears } from "../../features/academic-years";
+import type { AcademicYear } from "../../features/academic-years";
+import { useClasses, useClass, useCreateClass, useUpdateClass } from "../../features/classes";
+import type { SchoolClass } from "../../features/classes";
+import { useSections, useSection, useCreateSection, useUpdateSection } from "../../features/sections";
+import type { Section } from "../../features/sections";
 import { MOCK_TEACHERS } from "./mockData";
 import { TableSkeleton } from "../../components/skeleton";
 
@@ -55,25 +58,7 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-function sectionsQueryPredicate(classId?: string) {
-  return (query: { queryKey: readonly unknown[] }) => {
-    const key = query.queryKey[0];
-    if (typeof key !== "string") return false;
-    if (!key.startsWith(ENDPOINTS.SECTIONS.BASE)) return false;
-    if (classId) return key.includes(classId);
-    return true;
-  };
-}
 
-function classesQueryPredicate(academicYearId?: string) {
-  return (query: { queryKey: readonly unknown[] }) => {
-    const key = query.queryKey[0];
-    if (typeof key !== "string") return false;
-    if (!key.startsWith(ENDPOINTS.CLASSES.BASE)) return false;
-    if (academicYearId) return key.includes(academicYearId);
-    return true;
-  };
-}
 
 // ─── Mock student data (replace when student module is ready) ─────────────────
 
@@ -369,11 +354,7 @@ function ClassesTab({
   const statusFilter = filterValues["status"];
   const academicYearId = filterValues["academicYearId"];
 
-  const { data: academicYearsResponse } = useGet<
-    ApiPaginatedResponse<AcademicYear>
-  >(
-    `${ENDPOINTS.ACADEMIC_YEARS.LIST}?limit=50&sortBy=startDate&sortOrder=DESC`,
-  );
+  const { data: academicYearsResponse } = useAcademicYears();
   const academicYears = academicYearsResponse?.data ?? [];
 
   useEffect(() => {
@@ -636,9 +617,7 @@ function SectionsTab({
   const classId = filterValues["classId"];
 
   // Classes for the classId filter dropdown
-  const { data: classesResponse } = useGet<ApiPaginatedResponse<SchoolClass>>(
-    `${ENDPOINTS.CLASSES.BASE}?limit=100&status=ACTIVE`,
-  );
+  const { data: classesResponse } = useClasses({ requireAcademicYear: false });
   const classesForFilter = classesResponse?.data ?? [];
 
   const queryParams = new URLSearchParams({
@@ -874,20 +853,15 @@ function ClassFormDrawer({
   editing: SchoolClass | null;
   onClose: () => void;
 }) {
-  const qc = useQueryClient();
   const [form] = Form.useForm<ClassFormValues>();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = Boolean(editing);
 
-  const { data: academicYearsResponse } = useGet<
-    ApiPaginatedResponse<AcademicYear>
-  >(
-    `${ENDPOINTS.ACADEMIC_YEARS.LIST}?limit=50&sortBy=startDate&sortOrder=DESC`,
-  );
+  const { data: academicYearsResponse } = useAcademicYears();
   const academicYears = academicYearsResponse?.data ?? [];
 
-  const invalidateClasses = () =>
-    qc.invalidateQueries({ predicate: classesQueryPredicate(academicYearId) });
+  const { mutateAsync: createClass, isPending: isCreating } = useCreateClass();
+  const { mutateAsync: updateClass, isPending: isUpdating } = useUpdateClass(editing?.id ?? "");
+  const isSubmitting = isCreating || isUpdating;
 
   const onOpen = () => {
     if (editing) {
@@ -908,33 +882,23 @@ function ClassFormDrawer({
   const onSubmit = async () => {
     try {
       const values = await form.validateFields();
-      setIsSubmitting(true);
       const payload = {
         name: values.name.trim(),
         status: values.status,
         academicYearId: values.academicYearId,
       };
       if (isEditing && editing) {
-        await client.patch<ApiResponse<SchoolClass>>(
-          ENDPOINTS.CLASSES.DETAIL(editing.id),
-          payload,
-        );
+        await updateClass(payload);
         toast.success(`${values.name} updated`);
       } else {
-        await client.post<ApiResponse<SchoolClass>>(
-          ENDPOINTS.CLASSES.BASE,
-          payload,
-        );
+        await createClass(payload);
         toast.success(`${values.name} created`);
       }
-      invalidateClasses();
       form.resetFields();
       onClose();
     } catch (err: any) {
       if (err?.errorFields) return;
       toast.error(err?.message || "Operation failed");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -1039,15 +1003,11 @@ function SectionFormDrawer({
   editing: Partial<Section> | null;
   onClose: () => void;
 }) {
-  const qc = useQueryClient();
   const [form] = Form.useForm<SectionFormValues>();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = Boolean(editing?.id);
 
   // Fetch all active classes once — response includes nested academicYear
-  const { data: classesResponse } = useGet<ApiPaginatedResponse<SchoolClass>>(
-    `${ENDPOINTS.CLASSES.BASE}?limit=100&status=ACTIVE`,
-  );
+  const { data: classesResponse } = useClasses({ requireAcademicYear: false });
   const allActiveClasses = classesResponse?.data ?? [];
 
   // Derive unique academic years from the classes response
@@ -1061,38 +1021,25 @@ function SectionFormDrawer({
     [],
   );
 
-  // Default to CURRENT year; user can change
-  const [selectedYearId, setSelectedYearId] = useState<string | undefined>(
-    undefined,
-  );
+  const [selectedYearId, setSelectedYearId] = useState<string | undefined>(undefined);
 
-  // Derive the effective year: use what user picked, else the CURRENT one from the list
-  const currentYear = academicYearsFromClasses.find(
-    (y) => y.status === "CURRENT",
-  );
-  const effectiveYearId =
-    selectedYearId ?? currentYear?.id ?? academicYearsFromClasses[0]?.id;
+  const currentYear = academicYearsFromClasses.find((y) => y.status === "CURRENT");
+  const effectiveYearId = selectedYearId ?? currentYear?.id ?? academicYearsFromClasses[0]?.id;
 
-  // Classes filtered by selected academic year
   const activeClasses = allActiveClasses.filter(
     (c) => c.academicYear?.id === effectiveYearId,
   );
 
-  // When opened from a class row, fetch that class to show its name
   const presetClassId = !isEditing ? editing?.classId : undefined;
-  const { data: presetClassResponse } = useGet<ApiResponse<SchoolClass>>(
-    ENDPOINTS.CLASSES.DETAIL(presetClassId ?? ""),
-    Boolean(presetClassId),
-  );
+  const { data: presetClassResponse } = useClass(presetClassId);
   const presetClass = presetClassResponse?.data;
 
-  const invalidateSections = () =>
-    qc.invalidateQueries({
-      predicate: sectionsQueryPredicate(editing?.classId),
-    });
+  const { mutateAsync: createSection, isPending: isCreating } = useCreateSection();
+  const { mutateAsync: updateSection, isPending: isUpdating } = useUpdateSection(editing?.id ?? "");
+  const isSubmitting = isCreating || isUpdating;
 
   const onOpen = () => {
-    setSelectedYearId(undefined); // reset to default (CURRENT) each time drawer opens
+    setSelectedYearId(undefined);
     if (editing?.id) {
       form.setFieldsValue({
         classId: editing.classId,
@@ -1112,37 +1059,24 @@ function SectionFormDrawer({
   const onSubmit = async () => {
     try {
       const values = await form.validateFields();
-      setIsSubmitting(true);
 
       if (isEditing && editing?.id) {
-        const patch = {
+        await updateSection({
           name: values.name,
           capacity: values.capacity ?? null,
           status: values.status,
-        };
-        await client.patch<ApiResponse<Section>>(
-          ENDPOINTS.SECTIONS.DETAIL(editing.id),
-          patch,
-        );
+        });
         toast.success(`Section ${values.name} updated`);
       } else {
-        const payload = { classId: values.classId, name: values.name };
-        await client.post<ApiResponse<Section>>(
-          ENDPOINTS.SECTIONS.BASE,
-          payload,
-        );
+        await createSection({ classId: values.classId, name: values.name });
         toast.success(`Section ${values.name} created`);
       }
 
-      invalidateSections();
-      qc.invalidateQueries({ predicate: sectionsQueryPredicate() });
       form.resetFields();
       onClose();
     } catch (err: any) {
       if (err?.errorFields) return;
       toast.error(err?.message || "Operation failed");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -1309,10 +1243,10 @@ function ClassDetailDrawer({
   onViewSection: (s: Section) => void;
 }) {
   // Fetch sections for this class from the real API
-  const { data: sectionsResponse } = useGet<ApiPaginatedResponse<Section>>(
-    `${ENDPOINTS.SECTIONS.BASE}?classId=${schoolClass?.id}&limit=100`,
-    Boolean(schoolClass?.id),
-  );
+  const { data: sectionsResponse } = useSections({
+    classId: schoolClass?.id,
+    enabled: Boolean(schoolClass?.id),
+  });
   const sections = sectionsResponse?.data ?? [];
   const totalCap = sections.reduce((sum, s) => sum + (s.capacity ?? 0), 0);
 
@@ -1516,10 +1450,7 @@ function SectionDetailDrawer({
   onEdit: (s: Section) => void;
 }) {
   // Fetch fresh section data to get populated class field
-  const { data: sectionResponse } = useGet<ApiResponse<Section>>(
-    ENDPOINTS.SECTIONS.DETAIL(section?.id ?? ""),
-    Boolean(section?.id),
-  );
+  const { data: sectionResponse } = useSection(section?.id);
   const detail = sectionResponse?.data ?? section;
 
   const teacher = detail?.classTeacherId

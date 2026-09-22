@@ -40,3 +40,22 @@ export interface BaseEntity {
     updatedAt: string
     deletedAt?: string | null
 }
+
+// ─── Upload ───────────────────────────────────────────────────────────────────
+
+/**
+ * All valid upload purposes.
+ * Add new values here as you expand to teacher photos, invoice PDFs, etc.
+ */
+export type UploadPurpose =
+  | 'STUDENT_PHOTO'
+  | 'TEACHER_PHOTO'
+  | 'INVOICE_PDF'
+  | 'DOCUMENT'
+  | 'STUDENT_DOCUMENT'
+  | 'LOGO'
+
+export interface UploadResponse {
+  url: string
+  publicId: string
+}

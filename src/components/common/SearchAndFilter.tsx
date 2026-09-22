@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react'
-import { DatePicker, Select, Button } from 'antd'
-import type { Dayjs } from 'dayjs'
+import { Select, Button } from 'antd'
 import type { ReactNode } from 'react'
 import { SearchOutlined, ReloadOutlined } from '@ant-design/icons'
 import { colors, sizing } from '../../lib/designTokens'
+import { NepaliDateRangePicker } from '../nepali-calendar'
+import type { BsDateRange } from '../nepali-calendar'
 
 // ─── Column definition ────────────────────────────────────────────────────────
 
@@ -33,11 +34,9 @@ export interface SearchAndFilterProps {
   debounceMs?: number
   filterValues?: Record<string, string | undefined>
   onFilterChange?: (key: string, value: string | undefined) => void
-  dateValues?: Record<string, [Dayjs | null, Dayjs | null] | null>
-  onDateChange?: (
-    key: string,
-    range: [Dayjs | null, Dayjs | null] | null,
-  ) => void
+  /** BS date ranges keyed by column key */
+  dateValues?: Record<string, BsDateRange | null>
+  onDateChange?: (key: string, range: BsDateRange | null) => void
   extra?: ReactNode
   style?: React.CSSProperties
 }
@@ -117,18 +116,12 @@ export function SearchAndFilter({
   const hasActive =
     Boolean(searchValue) ||
     Object.values(filterValues).some(Boolean) ||
-    Object.values(dateValues).some(Boolean)
+    Object.values(dateValues).some((v) => v?.from || v?.to)
 
   const handleReset = () => {
     handleClearSearch()
-
-    filterableCols.forEach((c) => {
-      onFilterChange?.(c.key, undefined)
-    })
-
-    dateRangeCols.forEach((c) => {
-      onDateChange?.(c.key, null)
-    })
+    filterableCols.forEach((c) => { onFilterChange?.(c.key, undefined) })
+    dateRangeCols.forEach((c) => { onDateChange?.(c.key, null) })
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -272,25 +265,17 @@ export function SearchAndFilter({
         />
       ))}
 
-      {/* ── Date range ──────────────────────────────────────────────────── */}
+      {/* ── Nepali date range ────────────────────────────────────────── */}
 
       {dateRangeCols.map((col) => (
-        <DatePicker.RangePicker
+        <NepaliDateRangePicker
           key={col.key}
-          value={dateValues[col.key] ?? null}
-          onChange={(range) =>
-            onDateChange?.(col.key, range)
-          }
-          placeholder={['Start date', 'End date']}
-          style={{
-            width: col.dateRangeWidth ?? 300,
-            height: HEIGHT,
-
-            flexShrink: 0,
-
-            borderRadius: 7,
-          }}
-          variant="outlined"
+          value={dateValues[col.key] ?? undefined}
+          onChange={(range) => onDateChange?.(col.key, range)}
+          locale="ne"
+          size="middle"
+          zIndex={1050}
+          style={{ width: col.dateRangeWidth ?? 300, flexShrink: 0 }}
         />
       ))}
 

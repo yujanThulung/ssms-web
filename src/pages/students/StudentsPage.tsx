@@ -1,131 +1,104 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  Avatar, Button, Col, Descriptions, Drawer,
-  Form, Input, InputNumber, Row, Select, Space, Tabs, Typography,
+  Avatar, Button, Col, Descriptions, Drawer, Image,
+  Form, Modal, Row, Select, Space, Tabs,
+  Typography, Spin, Tag, type TablePaginationConfig,
 } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
+import type { ColumnsType } from 'antd/es/table/interface'
+import type { BsDateRange } from '../../components/nepali-calendar'
+import { NepaliDatePicker } from '../../components/nepali-calendar'
+import { bsIsoToAdIso, adIsoToBsIso } from '../../utils/nepaliDate'
 import {
   PlusOutlined, EyeOutlined, EditOutlined,
   TeamOutlined, UserOutlined, StopOutlined, BookOutlined,
-  WalletOutlined, CameraOutlined,
+  WalletOutlined, CameraOutlined, LoadingOutlined,
+  FilePdfOutlined, FileTextOutlined, DeleteOutlined,
+  ReloadOutlined, SwapOutlined,
 } from '@ant-design/icons'
 import { toast } from 'sonner'
 import { colors, DRAWER, radius } from '../../lib/designTokens'
 import { usePermission } from '../../context/PermissionContext'
 import { FEATURES, ACTIONS } from '../../utils/permissions'
 import { appConfirm } from '../../components/common/AppConfirm'
-import { StatusBadge } from '../../components/common/StatusBadge'
+import { StatusBadge, getStatusColor } from '../../components/common/StatusBadge'
 import { AppTable } from '../../components/common/AppTable'
+import { TableSkeleton } from '../../components/skeleton'
 import { SearchAndFilter } from '../../components/common/SearchAndFilter'
 import { StatCard } from '../../components/common/StatCard'
 import { StepBar } from '../../components/common/StepBar'
-
+import { FilePreviewModal } from '../../components/common/FilePreviewModal'
+import type { FilePreviewDoc } from '../../components/common/FilePreviewModal'
+import { useAcademicYears } from '../../features/academic-years'
+import { useClasses } from '../../features/classes'
+import { useSections } from '../../features/sections'
+import { useUpload } from '../../lib/api/hooks/useUpload'
+import { useNavigate, useParams } from 'react-router-dom'
+import {
+  useStudents, useStudent, useCreateStudent, useUploadStudentPhoto,
+  useUpdateStudent, useUpdateStudentStatus,
+  useDeactivateStudent, useRestoreStudent,
+} from '../../features/students'
+import { PersonalInfoStep } from './PersonalInfoStep'
+import type {
+  Student, StudentStatus, Gender, BloodGroup,
+  StudentListParams,
+  CreateStudentPayload, UpdateStudentPayload,
+  StudentDocumentType, StudentDocument,
+} from './types'
+import { getAllowedTransitions, STATUS_LABELS, normalizeStudentDocuments } from './types'
+import { admissionDateValidationRules } from './studentValidation'
+import {
+  attachStudentDocument, useAttachStudentDocument,
+  useDeleteStudentDocument, useStudentDocuments,
+} from '../../features/students/documents'
+import type { AttachDocumentPayload } from '../../features/students/documents'
 const { Title, Text } = Typography
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+//  Helpers 
 
-type StudentStatus = 'ACTIVE' | 'INACTIVE' | 'GRADUATED' | 'TRANSFERRED'
-type Gender = 'MALE' | 'FEMALE' | 'OTHER'
-
-interface StudentEnrollment {
-  academicYearName: string
-  className: string
-  sectionName: string
-  rollNumber: number | null
+function getFullName(s: Student) {
+  if (s.fullName) return s.fullName
+  return [s.firstName, s.middleName, s.lastName].filter(Boolean).join(' ')
 }
-
-interface Student {
-  id: string
-  admissionNo: string
-  fullName: string
-  dob: string
-  gender: Gender
-  bloodGroup: string | null
-  phone: string | null
-  email: string | null
-  permanentAddress: string | null
-  temporaryAddress: string | null
-  photo: string | null
-  status: StudentStatus
-  admissionDate: string
-  createdAt: string
-  guardianName: string | null
-  guardianPhone: string | null
-  fatherName: string | null
-  motherName: string | null
-  enrollment: StudentEnrollment | null
-}
-
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const MOCK_STUDENTS: Student[] = [
-  {
-    id: 'stu-1', admissionNo: 'ADM-2081-001', fullName: 'Aarav Sharma',
-    dob: '2012-04-15', gender: 'MALE', bloodGroup: 'B+',
-    phone: '9841000001', email: 'aarav@example.com',
-    permanentAddress: 'Kathmandu-10, Bagmati', temporaryAddress: 'Koteshwor, Kathmandu',
-    photo: null, status: 'ACTIVE', admissionDate: '2081-04-01', createdAt: '2025-04-01T00:00:00Z',
-    guardianName: 'Ram Sharma', guardianPhone: '9800000001',
-    fatherName: 'Ram Sharma', motherName: 'Gita Sharma',
-    enrollment: { academicYearName: '2081/82', className: 'Class 5', sectionName: 'A', rollNumber: 1 },
-  },
-  {
-    id: 'stu-2', admissionNo: 'ADM-2081-002', fullName: 'Priya Thapa',
-    dob: '2013-07-22', gender: 'FEMALE', bloodGroup: 'O+',
-    phone: '9841000002', email: null,
-    permanentAddress: 'Lalitpur-3, Bagmati', temporaryAddress: null,
-    photo: null, status: 'ACTIVE', admissionDate: '2081-04-01', createdAt: '2025-04-01T00:00:00Z',
-    guardianName: 'Sita Thapa', guardianPhone: '9800000002',
-    fatherName: 'Bishnu Thapa', motherName: 'Sita Thapa',
-    enrollment: { academicYearName: '2081/82', className: 'Class 5', sectionName: 'A', rollNumber: 2 },
-  },
-  {
-    id: 'stu-3', admissionNo: 'ADM-2081-003', fullName: 'Rohan Adhikari',
-    dob: '2011-11-05', gender: 'MALE', bloodGroup: 'A+',
-    phone: '9841000003', email: null,
-    permanentAddress: 'Bhaktapur-5, Bagmati', temporaryAddress: 'Bhaktapur',
-    photo: null, status: 'ACTIVE', admissionDate: '2081-04-01', createdAt: '2025-04-01T00:00:00Z',
-    guardianName: 'Hari Adhikari', guardianPhone: '9800000003',
-    fatherName: 'Hari Adhikari', motherName: 'Kamala Adhikari',
-    enrollment: { academicYearName: '2081/82', className: 'Class 6', sectionName: 'B', rollNumber: 5 },
-  },
-  {
-    id: 'stu-4', admissionNo: 'ADM-2080-015', fullName: 'Sita Rai',
-    dob: '2010-02-18', gender: 'FEMALE', bloodGroup: null,
-    phone: null, email: null,
-    permanentAddress: 'Pokhara-8, Gandaki', temporaryAddress: null,
-    photo: null, status: 'INACTIVE', admissionDate: '2080-04-01', createdAt: '2024-04-01T00:00:00Z',
-    guardianName: 'Bina Rai', guardianPhone: '9800000004',
-    fatherName: null, motherName: 'Bina Rai',
-    enrollment: null,
-  },
-  {
-    id: 'stu-5', admissionNo: 'ADM-2081-004', fullName: 'Bikash Gurung',
-    dob: '2012-09-30', gender: 'MALE', bloodGroup: 'AB+',
-    phone: '9841000005', email: null,
-    permanentAddress: 'Chitwan-4, Bagmati', temporaryAddress: null,
-    photo: null, status: 'ACTIVE', admissionDate: '2081-04-01', createdAt: '2025-04-01T00:00:00Z',
-    guardianName: 'Dhan Gurung', guardianPhone: '9800000005',
-    fatherName: 'Dhan Gurung', motherName: 'Maya Gurung',
-    enrollment: { academicYearName: '2081/82', className: 'Class 5', sectionName: 'B', rollNumber: 3 },
-  },
-  {
-    id: 'stu-6', admissionNo: 'ADM-2081-005', fullName: 'Anita Karki',
-    dob: '2013-01-12', gender: 'FEMALE', bloodGroup: 'B-',
-    phone: '9841000006', email: 'anita@example.com',
-    permanentAddress: 'Kathmandu-15, Bagmati', temporaryAddress: 'Kathmandu-15',
-    photo: null, status: 'ACTIVE', admissionDate: '2081-04-01', createdAt: '2025-04-01T00:00:00Z',
-    guardianName: 'Prem Karki', guardianPhone: '9800000006',
-    fatherName: 'Prem Karki', motherName: 'Sarita Karki',
-    enrollment: { academicYearName: '2081/82', className: 'Class 6', sectionName: 'A', rollNumber: 1 },
-  },
-]
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function initials(name: string) {
   return name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
 }
+
+function titleCase(v?: string) {
+  return v ? v.charAt(0) + v.slice(1).toLowerCase() : ''
+}
+
+function statusColor(s: StudentStatus) {
+  return getStatusColor(s)
+}
+
+//  Reusable description list 
+
+type DescRow = { label: string; value?: React.ReactNode; span?: number }
+
+function DescList({ rows, ...rest }: { rows: DescRow[] } & React.ComponentProps<typeof Descriptions>) {
+  return (
+    <Descriptions bordered size="small" column={2} {...rest}>
+      {rows.map(({ label, value, span }) => (
+        <Descriptions.Item key={label} label={label} span={span}>
+          {value || '—'}
+        </Descriptions.Item>
+      ))}
+    </Descriptions>
+  )
+}
+
+// ─── Shared option sets ───────────────────────────────────────────────────────
+
+const GENDER_OPTIONS = [
+  { label: 'Male', value: 'MALE' },
+  { label: 'Female', value: 'FEMALE' },
+  { label: 'Other', value: 'OTHER' },
+]
+
+const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-']
+const BLOOD_GROUP_OPTIONS = BLOOD_GROUPS.map((g) => ({ label: g, value: g }))
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
@@ -133,196 +106,193 @@ export default function StudentsPage() {
   const { can } = usePermission()
   const canCreate = can(FEATURES.STUDENT, ACTIONS.CREATE)
   const canUpdate = can(FEATURES.STUDENT, ACTIONS.UPDATE)
+  const canDelete = can(FEATURES.STUDENT, ACTIONS.DELETE)
 
-  const [students, setStudents] = useState<Student[]>(MOCK_STUDENTS)
-  const [q, setQ] = useState('')
+  // ── list / pagination state ──────────────────────────────────────
+  const [search, setSearch] = useState('')
   const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({})
-  const [viewStudent, setViewStudent] = useState<Student | null>(null)
-  const [admissionOpen, setAdmissionOpen] = useState(false)
+  const [dateValues, setDateValues] = useState<Record<string, BsDateRange | null>>({})
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
 
-  const statusFilter = filterValues['status']
-  const genderFilter = filterValues['gender']
-  const classFilter = filterValues['class']
-  const academicYearFilter = filterValues['academicYear']
+  const admissionRange = dateValues['admissionDate'] ?? null
 
-  const classOptions = [...new Set(students.map((s) => s.enrollment?.className).filter(Boolean))]
-    .map((c) => ({ label: c!, value: c! }))
-  const yearOptions = [...new Set(students.map((s) => s.enrollment?.academicYearName).filter(Boolean))]
-    .map((y) => ({ label: y!, value: y! }))
-
-  const filtered = students.filter((s) => {
-    if (statusFilter && s.status !== statusFilter) return false
-    if (genderFilter && s.gender !== genderFilter) return false
-    if (classFilter && s.enrollment?.className !== classFilter) return false
-    if (academicYearFilter && s.enrollment?.academicYearName !== academicYearFilter) return false
-    if (q) {
-      const ql = q.toLowerCase()
-      return s.fullName.toLowerCase().includes(ql) || s.admissionNo.toLowerCase().includes(ql)
-    }
-    return true
-  })
-
-  const total = students.length
-  const active = students.filter((s) => s.status === 'ACTIVE').length
-  const inactive = total - active
-  const classes = new Set(students.map((s) => s.enrollment?.className).filter(Boolean)).size
-
-  const handleDeactivate = (s: Student) => {
-    const isActive = s.status === 'ACTIVE'
-    appConfirm({
-      title: `${isActive ? 'Deactivate' : 'Activate'} ${s.fullName}?`,
-      content: isActive
-        ? 'The student will be marked as inactive and removed from active enrollments.'
-        : 'The student will be marked as active again.',
-      okText: isActive ? 'Deactivate' : 'Activate',
-      okColor: isActive ? 'danger' : 'primary',
-      cancelText: 'Cancel',
-      onOk: () => {
-        setStudents((prev) =>
-          prev.map((st) => st.id === s.id ? { ...st, status: isActive ? 'INACTIVE' : 'ACTIVE' } : st)
-        )
-        toast.success(`${s.fullName} ${isActive ? 'deactivated' : 'activated'}`)
-        // If the detail drawer is open for this student, update it
-        if (viewStudent?.id === s.id) {
-          setViewStudent((prev) => prev ? { ...prev, status: isActive ? 'INACTIVE' : 'ACTIVE' } : null)
-        }
-      },
-    })
+  const listParams: StudentListParams = {
+    search: search || undefined,
+    status: filterValues['status'] as StudentStatus | undefined,
+    gender: filterValues['gender'] as Gender | undefined,
+    bloodGroup: filterValues['bloodGroup'] as BloodGroup | undefined,
+    admissionDateFrom: admissionRange?.from ? bsIsoToAdIso(admissionRange.from) : undefined,
+    admissionDateTo: admissionRange?.to ? bsIsoToAdIso(admissionRange.to) : undefined,
+    page, limit,
   }
 
+  const { data, isLoading } = useStudents(listParams)
+  const students = data?.data ?? []
+  const meta = data?.meta
+
+  const total = meta?.total ?? 0
+  const active = students.filter((s) => s.status === 'ACTIVE').length
+  const inactive = students.filter((s) => s.status === 'INACTIVE' || s.status === 'SUSPENDED').length
+  const classes = new Set(students.map((s) => s.enrollment?.classId).filter(Boolean)).size
+
+  const { id: paramStudentId } = useParams<{ id?: string }>()
+  const navigate = useNavigate()
+
+  // ── drawer / modal state ────────────────────────────────────────────────
+  const [viewStudent, setViewStudent] = useState<Student | null>(null)
+  const [editStudent, setEditStudent] = useState<Student | null>(null)
+  const [statusStudent, setStatusStudent] = useState<Student | null>(null)
+  const [admissionOpen, setAdmissionOpen] = useState(false)
+
+  const activeDetailId = (paramStudentId && paramStudentId !== 'promote')
+    ? paramStudentId
+    : viewStudent?.id
+
+  const handleCloseDetail = () => {
+    setViewStudent(null)
+    if (paramStudentId && paramStudentId !== 'promote') {
+      navigate('/students')
+    }
+  }
+
+  // ── table onChange: pagination ──────────────────────────────────────────
+  const handleTableChange = (
+    pagination: TablePaginationConfig,
+  ) => {
+    if (pagination.current) setPage(pagination.current)
+    if (pagination.pageSize) { setLimit(pagination.pageSize); setPage(1) }
+  }
+
+  // ── filter config ───────────────────────────────────────────────────────
   const filterColumns = [
-    { key: 'name', title: 'Name / Admission No', isSearchable: true },
-    { key: 'academicYear', title: 'Academic Year', isFilterable: true, filterWidth: 160, filterOptions: yearOptions },
-    { key: 'class', title: 'Class', isFilterable: true, filterWidth: 150, filterOptions: classOptions },
     {
-      key: 'gender', title: 'Gender', isFilterable: true, filterWidth: 130,
-      filterOptions: [
-        { label: 'Male', value: 'MALE' },
-        { label: 'Female', value: 'FEMALE' },
-        { label: 'Other', value: 'OTHER' },
-      ],
+      key: 'name',
+      title: 'Search',
+      isSearchable: true,
+      placeholder: 'Name, admission no, phone, address…',
     },
+    { key: 'gender', title: 'Gender', isFilterable: true, filterWidth: 130, filterOptions: GENDER_OPTIONS },
     {
-      key: 'status', title: 'Status', isFilterable: true, filterWidth: 140,
-      filterOptions: [
-        { label: 'Active', value: 'ACTIVE' },
-        { label: 'Inactive', value: 'INACTIVE' },
-        { label: 'Graduated', value: 'GRADUATED' },
-        { label: 'Transferred', value: 'TRANSFERRED' },
-      ],
+      key: 'status', title: 'Status', isFilterable: true, filterWidth: 170,
+      filterOptions: Object.entries(STATUS_LABELS).map(([value, label]) => ({ label, value })),
     },
+    { key: 'bloodGroup', title: 'Blood Group', isFilterable: true, filterWidth: 120, filterOptions: BLOOD_GROUP_OPTIONS },
+    { key: 'admissionDate', title: 'Admission Date', isDateRange: true, dateRangeWidth: 240 },
   ]
 
+  const mono = (v?: string | number) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{v != null ? String(v) : '—'}</span>
+
+  // ── table columns ───────────────────────────────────────────────────────
   const columns: ColumnsType<Student> = [
     {
-      title: 'Photo',
-      key: 'photo',
-      width: 76,
+      title: 'Photo', key: 'photo', width: 90,
       render: (_: unknown, s: Student) => (
-        <Avatar
-          size={36}
-          src={s.photo ?? undefined}
-          style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 12 }}
-        >
-          {initials(s.fullName)}
+        <Avatar size={50} src={s.photoUrl ?? undefined}
+          style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 12 }}>
+          {initials(getFullName(s))}
         </Avatar>
       ),
     },
     {
-      title: 'Student',
-      key: 'student',
-      sorter: (a, b) => a.fullName.localeCompare(b.fullName),
+      title: 'Student', key: 'firstName',
       render: (_: unknown, s: Student) => (
-        <div>
-          <div style={{ fontWeight: 500, fontSize: 13 }}>{s.fullName}</div>
-          {/* <div style={{ fontFamily: 'monospace', fontSize: 11, color: colors.muted }}>{s.admissionNo}</div> */}
-        </div>
+        <div style={{ fontWeight: 500, fontSize: 13 }}>{getFullName(s)}</div>
       ),
     },
     {
-      title: 'Academic Year',
-      key: 'academicYear',
-      render: (_: unknown, s: Student) => s.enrollment?.academicYearName ?? '—',
+      title: 'Class / Section', key: 'class',
+      render: (_: unknown, s: Student) => s.enrollment
+        ? `${s.enrollment.className ?? ''} / ${s.enrollment.sectionName ?? ''}`
+        : '—',
     },
     {
-      title: 'Class',
-      key: 'class',
-      sorter: (a, b) => (a.enrollment?.className ?? '').localeCompare(b.enrollment?.className ?? ''),
-      render: (_: unknown, s: Student) => s.enrollment?.className ?? '—',
+      title: 'Roll No.', key: 'rollNo', width: 90,
+      render: (_: unknown, s: Student) => mono(s.enrollment?.rollNumber ?? undefined),
     },
     {
-      title: 'Section',
-      key: 'section',
-      width: 90,
-      render: (_: unknown, s: Student) => s.enrollment?.sectionName ?? '—',
+      title: 'Gender', dataIndex: 'gender', width: 90,
+      render: (v: Gender) => titleCase(v),
     },
     {
-      title: 'Roll No.',
-      key: 'rollNo',
-      width: 90,
-      render: (_: unknown, s: Student) => (
-        <span style={{ fontFamily: 'monospace' }}>{s.enrollment?.rollNumber ?? '—'}</span>
-      ),
+      title: 'Contact', key: 'contact',
+      render: (_: unknown, s: Student) => mono(s.parentPhone ?? undefined),
     },
     {
-      title: 'Gender',
-      dataIndex: 'gender',
-      render: (v: Gender) => v.charAt(0) + v.slice(1).toLowerCase(),
+      title: 'Admission Date', dataIndex: 'admissionDate', width: 150,
+      render: (v: string) => mono(v),
     },
     {
-      title: 'Guardian',
-      key: 'guardian',
-      render: (_: unknown, s: Student) => s.guardianName ?? <span style={{ color: colors.muted }}>—</span>,
+      title: 'DOB', dataIndex: 'dateOfBirth', width: 120,
+      render: (v: string) => mono(v),
     },
     {
-      title: 'Contact',
-      key: 'contact',
-      render: (_: unknown, s: Student) => (
-        <span style={{ fontFamily: 'monospace' }}>{s.phone ?? s.guardianPhone ?? '—'}</span>
-      ),
+      title: 'Created', dataIndex: 'createdAt', width: 120,
+      render: (v: string) => mono(v?.slice(0, 10)),
     },
     {
-      title: 'Admission Date',
-      dataIndex: 'admissionDate',
-      width: 160,
-      sorter: (a, b) => a.admissionDate.localeCompare(b.admissionDate),
-      render: (v: string) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{v}</span>,
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
+      title: 'Status', dataIndex: 'status',
       render: (v: string) => <StatusBadge status={v} />,
     },
     {
-      title: 'Actions',
-      key: 'actions',
-      fixed: 'right',
-      width: 130,
-      align: 'center',
-      render: (_: unknown, s: Student) => (
-        <Space size={4} onClick={(e) => e.stopPropagation()}>
-          <Button
-            type="default" size="small" icon={<EyeOutlined />} title="View"
-            onClick={() => setViewStudent(s)}
-            style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
-          />
-          <Button
-            type="default" size="small" icon={<WalletOutlined />} title="Fee Profile"
-            onClick={() => toast.info('Fee profile coming soon')}
-            style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted }}
-          />
-          {canUpdate && (
-            <Button
-              type="default" size="small"
-              icon={<StopOutlined />}
-              title={s.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-              onClick={() => handleDeactivate(s)}
-              style={{ borderRadius: radius.sm, borderColor: colors.border, color: s.status === 'ACTIVE' ? colors.error : colors.success }}
-            />
-          )}
-        </Space>
-      ),
+      title: 'Actions', key: 'actions', fixed: 'right', width: 148, align: 'center',
+      render: (_: unknown, s: Student) => {
+        const isTerminal = s.status === 'TRANSFERRED_OUT' || s.status === 'GRADUATED'
+        const iconBtn = (props: React.ComponentProps<typeof Button>) => (
+          <Button type="default" size="small"
+            style={{ borderRadius: radius.sm, borderColor: colors.border, color: colors.muted, ...props.style }}
+            {...props} />
+        )
+        return (
+          <Space size={4} onClick={(e) => e.stopPropagation()}>
+            {iconBtn({ icon: <EyeOutlined />, title: 'View', onClick: () => setViewStudent(s) })}
+            {canUpdate && iconBtn({ icon: <EditOutlined />, title: 'Edit', onClick: () => setEditStudent(s) })}
+            {canUpdate && !isTerminal && iconBtn({
+              icon: <SwapOutlined />, title: 'Change Status',
+              onClick: () => setStatusStudent(s), style: { color: colors.info },
+            })}
+            {canDelete && iconBtn({
+              icon: s.deletedAt ? <ReloadOutlined /> : <DeleteOutlined />,
+              title: s.deletedAt ? 'Restore' : 'Deactivate',
+              onClick: () => s.deletedAt ? handleRestore(s) : handleDeactivate(s),
+              style: { color: s.deletedAt ? colors.success : colors.error },
+            })}
+          </Space>
+        )
+      },
     },
+  ]
+
+  // ── action handlers ─────────────────────────────────────────────────────
+  const [pendingAction, setPendingAction] = useState<{ id: string; type: 'deactivate' | 'restore' } | null>(null)
+
+  const handleDeactivate = (s: Student) => {
+    appConfirm({
+      title: `Deactivate ${getFullName(s)}?`,
+      content: 'This is a soft delete. The student record can be restored.',
+      okText: 'Deactivate',
+      okColor: 'danger',
+      cancelText: 'Cancel',
+      onOk: () => setPendingAction({ id: s.id, type: 'deactivate' }),
+    })
+  }
+
+  const handleRestore = (s: Student) => {
+    appConfirm({
+      title: `Restore ${getFullName(s)}?`,
+      content: 'The student record will be made visible again.',
+      okText: 'Restore',
+      okColor: 'primary',
+      cancelText: 'Cancel',
+      onOk: () => setPendingAction({ id: s.id, type: 'restore' }),
+    })
+  }
+
+  const kpis = [
+    { label: 'Total Students', value: total, icon: <TeamOutlined />, color: colors.primary, bg: colors.primaryLight },
+    { label: 'Active Students', value: active, icon: <UserOutlined />, color: colors.success, bg: colors.successLight },
+    { label: 'Inactive / Suspended', value: inactive, icon: <StopOutlined />, color: colors.error, bg: colors.errorLight },
+    { label: 'Classes', value: classes, icon: <BookOutlined />, color: colors.info, bg: colors.infoLight },
   ]
 
   return (
@@ -334,7 +304,8 @@ export default function StudentsPage() {
           <Text type="secondary" style={{ fontSize: 13 }}>Search, filter and manage every enrolled student</Text>
         </div>
         {canCreate && (
-          <Button type="primary" icon={<PlusOutlined />} style={{ background: colors.primary }} onClick={() => setAdmissionOpen(true)}>
+          <Button type="primary" icon={<PlusOutlined />} style={{ background: colors.primary }}
+            onClick={() => setAdmissionOpen(true)}>
             New Admission
           </Button>
         )}
@@ -342,104 +313,248 @@ export default function StudentsPage() {
 
       {/* KPI Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        {[
-          { label: 'Total Students', value: total, icon: <TeamOutlined />, color: colors.primary, bg: colors.primaryLight },
-          { label: 'Active Students', value: active, icon: <UserOutlined />, color: colors.success, bg: colors.successLight },
-          { label: 'Inactive', value: inactive, icon: <StopOutlined />, color: colors.error, bg: colors.errorLight },
-          { label: 'Classes', value: classes, icon: <BookOutlined />, color: colors.info, bg: colors.infoLight },
-        ].map((kpi) => (
+        {kpis.map((kpi) => (
           <Col key={kpi.label} xs={12} sm={8} md={6}>
-            <StatCard variant="default" size="middle" label={kpi.label} value={kpi.value} icon={kpi.icon} color={kpi.color} iconBg={kpi.bg} />
+            <StatCard variant="default" size="middle" label={kpi.label} value={kpi.value}
+              icon={kpi.icon} color={kpi.color} iconBg={kpi.bg} />
           </Col>
         ))}
       </Row>
 
-      {/* Filter + Table */}
+      {/* Filters */}
       <SearchAndFilter
         columns={filterColumns}
-        searchValue={q}
-        onSearchChange={setQ}
-        debounceMs={300}
+        searchValue={search}
+        onSearchChange={(v) => { setSearch(v); setPage(1) }}
+        debounceMs={400}
         filterValues={filterValues}
-        onFilterChange={(key, value) => setFilterValues((prev) => ({ ...prev, [key]: value }))}
-      />
-      <AppTable<Student>
-        rowKey="id"
-        columns={columns}
-        dataSource={filtered}
-        onRowClick={(s) => setViewStudent(s)}
-        scroll={{ x: 1200 }}
-        locale={{ emptyText: 'No students found.' }}
+        onFilterChange={(key, value) => {
+          setFilterValues((prev) => ({ ...prev, [key]: value }))
+          setPage(1)
+        }}
+        dateValues={dateValues}
+        onDateChange={(key, range) => {
+          setDateValues((prev) => ({ ...prev, [key]: range }))
+          setPage(1)
+        }}
       />
 
+      {/* Table — skeleton on first load, real table afterwards */}
+      {isLoading ? (
+        <TableSkeleton rows={limit} columns={10} />
+      ) : (
+        <AppTable<Student>
+          rowKey="id"
+          columns={columns}
+          dataSource={students}
+          loading={false}
+          onRowClick={(s) => setViewStudent(s)}
+          scroll={{ x: 1500 }}
+          locale={{ emptyText: 'No students found.' }}
+          onChange={handleTableChange as any}
+          pagination={{
+            current: page,
+            pageSize: limit,
+            total: meta?.total ?? 0,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            showTotal: (t) => `Total ${t} students`,
+          }}
+        />
+      )}
+
+      {/* Invisible action executor */}
+      {pendingAction && (
+        <StudentActionExecutor
+          id={pendingAction.id}
+          type={pendingAction.type}
+          onDone={() => setPendingAction(null)}
+        />
+      )}
+
+      {/* Drawers / Modals */}
       <StudentDetailDrawer
         student={viewStudent}
+        studentId={activeDetailId}
         canUpdate={canUpdate}
-        onClose={() => setViewStudent(null)}
+        canDelete={canDelete}
+        onClose={handleCloseDetail}
+        onEdit={(s) => { setViewStudent(null); setEditStudent(s) }}
+        onStatusChange={(s) => { setViewStudent(null); setStatusStudent(s) }}
         onDeactivate={handleDeactivate}
+        onRestore={handleRestore}
       />
-      <NewAdmissionDrawer
+
+      <StudentFormDrawer
+        open={!!editStudent}
+        student={editStudent}
+        onClose={() => setEditStudent(null)}
+      />
+
+      <StudentFormDrawer
         open={admissionOpen}
         onClose={() => setAdmissionOpen(false)}
+        onSuccess={() => setSearch('')}
+      />
+
+      <StatusChangeModal
+        student={statusStudent}
+        onClose={() => setStatusStudent(null)}
       />
     </div>
   )
 }
 
-// ─── STUDENT DETAIL DRAWER ───────────────────────────────────────────────────
+// ─── INVISIBLE ACTION EXECUTOR ────────────────────────────────────────────────
 
-function StudentDetailDrawer({ student, canUpdate, onClose, onDeactivate }: {
-  student: Student | null
-  canUpdate: boolean
-  onClose: () => void
-  onDeactivate: (s: Student) => void
+function StudentActionExecutor({ id, type, onDone }: {
+  id: string
+  type: 'deactivate' | 'restore'
+  onDone: () => void
 }) {
+  const { mutateAsync: deactivate } = useDeactivateStudent(id)
+  const { mutateAsync: restore } = useRestoreStudent(id)
+
+  useState(() => {
+    const run = async () => {
+      try {
+        if (type === 'deactivate') {
+          await deactivate()
+          toast.success('Student deactivated')
+        } else {
+          await restore()
+          toast.success('Student restored')
+        }
+      } catch (err) {
+        toast.error((err as Error).message ?? `Failed to ${type}`)
+      } finally {
+        onDone()
+      }
+    }
+    run()
+  })
+
+  return null
+}
+
+// ─── STUDENT DETAIL DRAWER ────────────────────────────────────────────────────
+
+function StudentDetailDrawer({
+  student: initialStudent,
+  studentId: propStudentId,
+  canUpdate,
+  canDelete,
+  onClose,
+  onEdit,
+  onStatusChange,
+  onDeactivate,
+  onRestore,
+}: {
+  student?: Student | null
+  studentId?: string | null
+  canUpdate: boolean
+  canDelete: boolean
+  onClose: () => void
+  onEdit: (s: Student) => void
+  onStatusChange: (s: Student) => void
+  onDeactivate: (s: Student) => void
+  onRestore: (s: Student) => void
+}) {
+  const activeId = propStudentId || initialStudent?.id
+  const { data: detailData, isLoading } = useStudent(activeId ?? undefined)
+  const student = detailData?.data ?? initialStudent
+
+  if (!activeId) return null
+
+  if (isLoading && !student) {
+    return (
+      <Drawer open={!!activeId} onClose={onClose} size={DRAWER.widthLg} title="Student Details">
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 60 }}>
+          <Spin size="large" />
+        </div>
+      </Drawer>
+    )
+  }
+
   if (!student) return null
+
+  const fullName = getFullName(student)
+  const isTerminal = student.status === 'TRANSFERRED_OUT' || student.status === 'GRADUATED'
+  const transitions = getAllowedTransitions(student.status)
+
+  const profileRows: DescRow[] = [
+    { label: 'Admission No.', span: 2, value: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{student.admissionNumber}</span> },
+    { label: 'Full Name', span: 2, value: fullName },
+    { label: 'Date of Birth', value: student.dateOfBirth },
+    { label: 'Gender', value: titleCase(student.gender) },
+    { label: 'Blood Group', value: student.bloodGroup },
+    { label: 'Status', value: <StatusBadge status={student.status} /> },
+    { label: 'Parent Phone', value: student.parentPhone },
+    { label: 'Parent Email', value: student.parentEmail },
+    { label: 'Admission Date', value: student.admissionDate },
+    { label: 'Permanent Address', span: 2, value: student.addressPermanent },
+    { label: 'Temporary Address', span: 2, value: student.addressTemporary },
+  ]
 
   return (
     <Drawer
       title={
-        <Space>
-          <Avatar
-            size={40}
-            src={student.photo ?? undefined}
-            style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 14 }}
-          >
-            {initials(student.fullName)}
-          </Avatar>
+        <Space align="center">
+          {student.photoUrl ? (
+            <Image src={student.photoUrl} width={48} height={48}
+              style={{ borderRadius: '50%', objectFit: 'cover', border: `2px solid ${colors.primaryBorder}` }}
+              preview={{ mask: false }} />
+          ) : (
+            <Avatar size={48}
+              style={{ background: colors.primaryLight, color: colors.primary, fontWeight: 700, fontSize: 16, flexShrink: 0 }}>
+              {initials(fullName)}
+            </Avatar>
+          )}
           <div>
-            <div style={{ fontWeight: 600 }}>{student.fullName}</div>
-            <div style={{ fontSize: 12, color: colors.muted, fontWeight: 400, fontFamily: 'monospace' }}>
-              {student.admissionNo}
+            <div style={{ fontWeight: 600, fontSize: 15 }}>{fullName}</div>
+            <div style={{ fontSize: 12, color: colors.muted, fontFamily: 'monospace' }}>
+              {student.admissionNumber}
             </div>
           </div>
         </Space>
       }
-      open={!!student}
+      open={!!activeId}
       onClose={onClose}
       size={DRAWER.widthLg}
       extra={
-        canUpdate && (
-          <Space>
-            <Button icon={<WalletOutlined />} onClick={() => toast.info('Fee profile coming soon')}>
-              Fee Profile
+        <Space wrap>
+          <Button icon={<WalletOutlined />} onClick={() => toast.info('Fee profile coming soon')}>
+            Fee Profile
+          </Button>
+          {canUpdate && !isTerminal && transitions.length > 0 && (
+            <Button icon={<SwapOutlined />} onClick={() => onStatusChange(student)}>
+              Change Status
             </Button>
-            <Button
-              danger={student.status === 'ACTIVE'}
-              icon={<StopOutlined />}
-              onClick={() => { onDeactivate(student); onClose() }}
-            >
-              {student.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-            </Button>
-            <Button type="primary" icon={<EditOutlined />} style={{ background: colors.primary }}
-              onClick={() => toast.info('Edit coming soon')}>
+          )}
+          {canUpdate && (
+            <Button icon={<EditOutlined />} type="primary" style={{ background: colors.primary }}
+              onClick={() => onEdit(student)}>
               Edit
             </Button>
-          </Space>
-        )
+          )}
+          {canDelete && (
+            student.deletedAt ? (
+              <Button icon={<ReloadOutlined />} onClick={() => onRestore(student)}>Restore</Button>
+            ) : (
+              <Button danger icon={<DeleteOutlined />} onClick={() => onDeactivate(student)}>Deactivate</Button>
+            )
+          )}
+        </Space>
       }
     >
-      {/* Enrollment banner */}
+      {student.photoUrl && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <Image src={student.photoUrl} width={120} height={120}
+            style={{ borderRadius: 8, objectFit: 'cover', border: `2px solid ${colors.primaryBorder}`, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}
+            preview={{ mask: <span style={{ fontSize: 12 }}>View</span> }} />
+        </div>
+      )}
+
       {student.enrollment ? (
         <div style={{ padding: 16, background: colors.primaryLight, border: `1px solid ${colors.primaryBorder}`, borderRadius: 8, marginBottom: 20 }}>
           <Text strong style={{ fontSize: 13, color: colors.primary }}>Current Enrollment</Text>
@@ -457,45 +572,17 @@ function StudentDetailDrawer({ student, canUpdate, onClose, onDeactivate }: {
       )}
 
       <Tabs items={[
+        { key: 'profile', label: 'Profile', children: <DescList rows={profileRows} /> },
         {
-          key: 'profile',
-          label: 'Profile',
+          key: 'documents', label: 'Documents',
           children: (
-            <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="Admission No." span={2}>
-                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{student.admissionNo}</span>
-              </Descriptions.Item>
-              <Descriptions.Item label="Full Name" span={2}>{student.fullName}</Descriptions.Item>
-              <Descriptions.Item label="Date of Birth">{student.dob}</Descriptions.Item>
-              <Descriptions.Item label="Gender">{student.gender.charAt(0) + student.gender.slice(1).toLowerCase()}</Descriptions.Item>
-              <Descriptions.Item label="Blood Group">{student.bloodGroup ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Phone">{student.phone ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Email">{student.email ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Admission Date">{student.admissionDate}</Descriptions.Item>
-              <Descriptions.Item label="Status"><StatusBadge status={student.status} /></Descriptions.Item>
-              <Descriptions.Item label="Permanent Address" span={2}>{student.permanentAddress ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Temporary Address" span={2}>{student.temporaryAddress ?? '—'}</Descriptions.Item>
-            </Descriptions>
-          ),
-        },
-        {
-          key: 'guardian',
-          label: 'Guardian',
-          children: (
-            <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="Father Name">{student.fatherName ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Mother Name">{student.motherName ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Guardian Name" span={2}>{student.guardianName ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Guardian Phone">{student.guardianPhone ?? '—'}</Descriptions.Item>
-            </Descriptions>
-          ),
-        },
-        {
-          key: 'documents',
-          label: 'Documents',
-          children: (
-            <div style={{ padding: 32, textAlign: 'center', background: colors.surfaceAlt, borderRadius: 8, border: `1px solid ${colors.border}` }}>
-              <Text type="secondary">Document management coming soon.</Text>
+            <div style={{ paddingTop: 8 }}>
+              <DocumentUploader
+                studentId={student.id}
+                existingDocuments={student.documents}
+                pendingDocs={[]}
+                onPendingDocsChange={() => {}}
+              />
             </div>
           ),
         },
@@ -504,64 +591,397 @@ function StudentDetailDrawer({ student, canUpdate, onClose, onDeactivate }: {
   )
 }
 
+// ─── STATUS CHANGE MODAL ──────────────────────────────────────────────────────
+
+function StatusChangeModal({ student, onClose }: {
+  student: Student | null
+  onClose: () => void
+}) {
+  const [selected, setSelected] = useState<StudentStatus | null>(null)
+  const { mutateAsync: updateStatus, isPending } = useUpdateStudentStatus(student?.id ?? '')
+
+  const transitions = student ? getAllowedTransitions(student.status) : []
+
+  const handleSubmit = async () => {
+    if (!selected || !student) return
+    try {
+      await updateStatus({ status: selected })
+      toast.success(`Status changed to ${STATUS_LABELS[selected]}`)
+      setSelected(null)
+      onClose()
+    } catch (err) {
+      toast.error((err as Error)?.message ?? 'Status change failed')
+    }
+  }
+
+  const handleClose = () => { setSelected(null); onClose() }
+
+  return (
+    <Modal
+      title="Change Student Status"
+      open={!!student}
+      onCancel={handleClose}
+      onOk={handleSubmit}
+      okText="Confirm"
+      okButtonProps={{ disabled: !selected, loading: isPending, style: { background: colors.primary } }}
+      destroyOnClose
+    >
+      {student && (
+        <>
+          <div style={{ marginBottom: 16 }}>
+            <Text>Current status of <strong>{getFullName(student)}</strong>:</Text>
+            <div style={{ marginTop: 6 }}>
+              <Tag color={statusColor(student.status)} style={{ fontSize: 13, padding: '2px 10px' }}>
+                {STATUS_LABELS[student.status]}
+              </Tag>
+            </div>
+          </div>
+
+          {transitions.length === 0 ? (
+            <div style={{ padding: 16, background: colors.surfaceAlt, borderRadius: 8, textAlign: 'center' }}>
+              <Text type="secondary">No further transitions are allowed from this status.</Text>
+            </div>
+          ) : (
+            <>
+              <Text type="secondary" style={{ fontSize: 13 }}>Select the new status:</Text>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
+                {transitions.map((s) => (
+                  <div
+                    key={s}
+                    onClick={() => setSelected(s)}
+                    style={{
+                      padding: '8px 18px',
+                      borderRadius: 8,
+                      border: `2px solid ${selected === s ? colors.primary : colors.border}`,
+                      background: selected === s ? colors.primaryLight : colors.surface,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <Tag color={statusColor(s)} style={{ marginRight: 6 }}>{STATUS_LABELS[s]}</Tag>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </Modal>
+  )
+}
+
 // ─── PROFILE PICTURE PICKER ───────────────────────────────────────────────────
 
-function ProfilePicturePicker({ value, onChange }: {
-  value?: string | null
-  onChange?: (url: string | null) => void
+export function ProfilePicturePicker({ initialUrl, onUploadComplete }: {
+  initialUrl?: string | null
+  onUploadComplete: (url: string, publicId: string) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [preview, setPreview] = useState<string | null>(value ?? null)
+  const [preview, setPreview] = useState<string | null>(initialUrl ?? null)
+  const { mutateAsync: upload, isPending } = useUploadStudentPhoto()
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const url = URL.createObjectURL(file)
-    setPreview(url)
-    onChange?.(url)
+    setPreview(URL.createObjectURL(file))
+    try {
+      const result = await upload(file)
+      onUploadComplete(result.url, result.publicId)
+      toast.success('Photo uploaded')
+    } catch {
+      toast.error('Photo upload failed')
+      setPreview(initialUrl ?? null)
+    }
+    e.target.value = ''
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 24 }}>
       <div
         style={{
-          width: 96, height: 96, borderRadius: '50%',
+          width: 100, height: 100, borderRadius: '50%',
           background: colors.primaryLight, border: `2px dashed ${colors.primaryBorder}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          overflow: 'hidden', cursor: 'pointer', position: 'relative',
+          overflow: 'hidden', cursor: isPending ? 'not-allowed' : 'pointer',
         }}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => !isPending && inputRef.current?.click()}
       >
-        {preview
-          ? <img src={preview} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <CameraOutlined style={{ fontSize: 28, color: colors.primary }} />
+        {isPending
+          ? <Spin indicator={<LoadingOutlined style={{ fontSize: 24, color: colors.primary }} />} />
+          : preview
+            ? <img src={preview} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <CameraOutlined style={{ fontSize: 28, color: colors.primary }} />
         }
       </div>
-      <Text type="secondary" style={{ fontSize: 11, marginTop: 6 }}>Click to upload photo</Text>
+      <Text type="secondary" style={{ fontSize: 11, marginTop: 6 }}>
+        {isPending ? 'Uploading…' : preview ? 'Click to change photo' : 'Click to upload photo'}
+      </Text>
       <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFile} />
     </div>
   )
 }
 
-// ─── NEW ADMISSION DRAWER ─────────────────────────────────────────────────────
+const DOC_TYPES: { type: StudentDocumentType; label: string; accept: string; icon: React.ReactNode }[] = [
+  { type: 'BIRTH_CERTIFICATE' as StudentDocumentType, label: 'Birth Certificate', accept: 'image/*,.pdf', icon: <FileTextOutlined /> },
+  { type: 'TRANSFER_CERTIFICATE' as StudentDocumentType, label: 'Transfer Certificate', accept: 'image/*,.pdf', icon: <FilePdfOutlined /> },
+  { type: 'REPORT_CARD' as StudentDocumentType, label: 'Report Card', accept: 'image/*,.pdf', icon: <FileTextOutlined /> },
+  { type: 'ID_PROOF' as StudentDocumentType, label: 'ID Proof', accept: 'image/*,.pdf', icon: <FileTextOutlined /> },
+  { type: 'OTHER' as StudentDocumentType, label: 'Other', accept: 'image/*,.pdf', icon: <FileTextOutlined /> },
+]
 
-const STEPS = ['Student Info', 'Academic & Guardian', 'Review']
+// ─── DOCUMENT UPLOADER ────────────────────────────────────────────────────────
+function DocumentUploader({
+  studentId,
+  existingDocuments,
+  pendingDocs,
+  onPendingDocsChange,
+}: {
+  studentId?: string
+  existingDocuments?: Record<string, StudentDocument> | StudentDocument[] | null
+  pendingDocs: AttachDocumentPayload[]
+  onPendingDocsChange: (docs: AttachDocumentPayload[]) => void
+}) {
+  const { data: fallbackSavedDocs = [], isLoading } = useStudentDocuments(
+    existingDocuments ? undefined : studentId
+  )
+  const { mutateAsync: rawUpload } = useUpload({ purpose: 'STUDENT_DOCUMENT' })
+  const { mutateAsync: attach } = useAttachStudentDocument(studentId ?? '')
+  const { mutateAsync: remove } = useDeleteStudentDocument(studentId ?? '')
+  const [previewDoc, setPreviewDoc] = useState<FilePreviewDoc | null>(null)
+  const [uploading, setUploading] = useState<StudentDocumentType | null>(null)
+  const [removing, setRemoving] = useState<string | null>(null)
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
-function NewAdmissionDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const normalizedExisting = normalizeStudentDocuments(existingDocuments)
+  const savedDocs = existingDocuments ? normalizedExisting : fallbackSavedDocs
+
+  // Edit mode: documents already saved on the student.
+  // Create mode: documents picked so far, held locally until submit.
+  const docs: { documentType: StudentDocumentType; url: string; id?: string; fileName?: string }[] =
+    studentId ? savedDocs : pendingDocs
+
+  const handleFile = async (type: StudentDocumentType, label: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(type)
+    try {
+      // Step 1 — upload the raw file to storage right away, same as the photo picker
+      const result = await rawUpload(file)
+      const payload: AttachDocumentPayload = {
+        documentType: type,
+        url: result.url,
+        publicId: result.publicId,
+        fileName: file.name,
+      }
+
+      if (studentId) {
+        // Step 2 — student already exists, attach immediately
+        await attach(payload)
+      } else {
+        // Student doesn't exist yet — hold locally, attached right after creation
+        onPendingDocsChange([...pendingDocs.filter((d) => d.documentType !== type), payload])
+      }
+      toast.success(`${label} uploaded`)
+    } catch (err) {
+      toast.error((err as Error)?.message ?? `Failed to upload ${label}`)
+    } finally {
+      setUploading(null)
+      e.target.value = ''
+    }
+  }
+
+  const handleRemove = (type: StudentDocumentType, label: string, documentId?: string) => {
+    appConfirm({
+      title: `Remove ${label}?`,
+      content: 'This will permanently delete the uploaded file.',
+      okText: 'Remove',
+      okColor: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        if (studentId && documentId) {
+          setRemoving(documentId)
+          try {
+            await remove(documentId)
+            toast.success(`${label} removed`)
+          } catch (err) {
+            toast.error((err as Error)?.message ?? `Failed to remove ${label}`)
+          } finally {
+            setRemoving(null)
+          }
+        } else {
+          onPendingDocsChange(pendingDocs.filter((d) => d.documentType !== type))
+          toast.success(`${label} removed`)
+        }
+      },
+    })
+  }
+
+  return (
+    <div>
+      <Text strong style={{ fontSize: 13 }}>Supporting Documents</Text>
+      <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 12 }}>
+        Accepts images or PDF, one file per document type.
+      </Text>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {DOC_TYPES.map(({ type, label, accept, icon }) => {
+          const uploaded = docs.find((d) => d.documentType === type)
+          const documentId = uploaded?.id
+          const isUploading = uploading === type
+          const isRemoving = documentId ? removing === documentId : false
+          return (
+            <div key={type} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 14px',
+              border: `1px solid ${uploaded ? colors.success : colors.border}`,
+              borderRadius: radius.md,
+              background: uploaded ? colors.successLight : colors.surface,
+              gap: 12,
+            }}>
+              <Space style={{ minWidth: 0, flex: 1 }}>
+                <span style={{ color: uploaded ? colors.success : colors.muted, fontSize: 18, flexShrink: 0 }}>{icon}</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{label}</div>
+                  {uploaded && (
+                    <div style={{ marginTop: 2 }}>
+                      {uploaded.fileName && (
+                        <Text type="secondary" style={{ fontSize: 11, display: 'block', wordBreak: 'break-all' }}>
+                          {uploaded.fileName}
+                        </Text>
+                      )}
+                      <Button
+                        type="link"
+                        size="small"
+                        icon={<EyeOutlined />}
+                        onClick={() => setPreviewDoc({ url: uploaded.url, title: label, fileName: uploaded.fileName })}
+                        style={{ padding: 0, height: 'auto', fontSize: 12, color: colors.primary, fontWeight: 500 }}
+                      >
+                        View Document
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </Space>
+              <Space style={{ flexShrink: 0 }}>
+                {uploaded ? (
+                  <>
+                    <Tag color="success" style={{ margin: 0 }}>Uploaded</Tag>
+                    <Button size="small" type="text" danger icon={<DeleteOutlined />}
+                      loading={isRemoving} onClick={() => handleRemove(type, label, documentId)} />
+                  </>
+                ) : (
+                  <Button size="small" loading={isUploading}
+                    disabled={(!!uploading && !isUploading) || (studentId && !existingDocuments ? isLoading : false)}
+                    onClick={() => inputRefs.current[type]?.click()}
+                    style={{ borderColor: colors.border }}>
+                    {isUploading ? 'Uploading…' : 'Upload'}
+                  </Button>
+                )}
+                <input
+                  ref={(el) => { inputRefs.current[type] = el }}
+                  type="file" accept={accept} style={{ display: 'none' }}
+                  onChange={(e) => handleFile(type, label, e)}
+                />
+              </Space>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Document preview modal (shared component) */}
+      <FilePreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
+    </div>
+  )
+}
+// ─── STUDENT FORM DRAWER (shared by create + edit) ────────────────────────────
+
+const STEPS = ['Student Info', 'Academic & Documents', 'Review']
+
+function StudentFormDrawer({ open, student, onClose, onSuccess }: {
+  open: boolean
+  student?: Student | null      // present => edit mode
+  onClose: () => void
+  onSuccess?: () => void
+}) {
+  const isEdit = !!student
   const [form] = Form.useForm()
   const [step, setStep] = useState(0)
-  const [photo, setPhoto] = useState<string | null>(null)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [photoPublicId, setPhotoPublicId] = useState<string | null>(null)
+  const [pendingDocs, setPendingDocs] = useState<AttachDocumentPayload[]>([])
+  const [reviewValues, setReviewValues] = useState<Record<string, any>>({})
 
-  const reset = () => { form.resetFields(); setStep(0); setPhoto(null) }
+  const { mutateAsync: createStudent, isPending: isCreating } = useCreateStudent()
+  const { mutateAsync: updateStudent, isPending: isUpdating } = useUpdateStudent(student?.id ?? '')
+  const isSaving = isCreating || isUpdating
+
+  const reset = () => {
+    form.resetFields()
+    setStep(0)
+    setPhotoUrl(null)
+    setPhotoPublicId(null)
+    setPendingDocs([])
+    setReviewValues({})
+  }
   const handleClose = () => { reset(); onClose() }
+
+  // Pre-fill in edit mode. Pickers work in BS.
+  const handleAfterOpen = (isOpen: boolean) => {
+    if (!isOpen || !student) return
+    const getBsDateStr = (dateStr?: string | null) => {
+      if (!dateStr) return undefined
+      const year = parseInt(dateStr.split('-')[0], 10)
+      if (!isNaN(year) && year >= 2000) return dateStr
+      try {
+        return adIsoToBsIso(dateStr)
+      } catch {
+        return dateStr
+      }
+    }
+
+    form.setFieldsValue({
+      firstName: student.firstName,
+      middleName: student.middleName ?? '',
+      lastName: student.lastName,
+      dateOfBirth: getBsDateStr(student.dateOfBirth),
+      gender: student.gender,
+      bloodGroup: student.bloodGroup ?? undefined,
+      parentPhone: student.parentPhone ?? '',
+      parentEmail: student.parentEmail ?? '',
+      addressPermanent: student.addressPermanent ?? '',
+      addressTemporary: student.addressTemporary ?? '',
+      admissionDate: getBsDateStr(student.admissionDate),
+      academicYearId: (student.enrollment as any)?.academicYearId,
+      classId: student.enrollment?.classId,
+      sectionId: (student.enrollment as any)?.sectionId,
+    })
+    setPhotoUrl(student.photoUrl ?? null)
+    setPhotoPublicId((student as any).photoPublicId ?? null)
+  }
 
   const goNext = async () => {
     const fieldsByStep: Record<number, string[]> = {
-      0: ['firstName', 'lastName', 'dob', 'gender'],
-      1: ['admissionNo', 'admissionDate', 'academicYearId', 'classId', 'sectionId', 'guardianPhone'],
+      0: [
+        'firstName', 'middleName', 'lastName',
+        'dateOfBirth', 'gender', 'bloodGroup',
+        'parentPhone', 'parentEmail',
+        'addressPermanent', 'addressTemporary',
+      ],
+      1: isEdit ? ['academicYearId', 'classId', 'sectionId'] : ['admissionDate', 'academicYearId', 'classId', 'sectionId'],
     }
+
     try {
       await form.validateFields(fieldsByStep[step] ?? [])
+
+      // Take a snapshot BEFORE moving to the Review step
+      const values = form.getFieldsValue(true)
+
+      if (step === 1) {
+        // Capture the complete form state before rendering Review.
+        // This prevents the review screen from depending on a conditionally
+        // mounted Form/useWatch state.
+        setReviewValues({ ...values })
+      }
+
       setStep((s) => s + 1)
     } catch {
       toast.error('Please fix the highlighted errors before continuing')
@@ -571,229 +991,530 @@ function NewAdmissionDrawer({ open, onClose }: { open: boolean; onClose: () => v
   const onSubmit = async () => {
     try {
       await form.validateFields()
-      toast.success('Admission submitted — API integration coming soon')
+      const v = form.getFieldsValue(true)
+
+      const base = {
+        firstName: v.firstName?.trim(),
+        middleName: v.middleName?.trim() || undefined,
+        lastName: v.lastName?.trim(),
+        dateOfBirth: v.dateOfBirth || '',
+        gender: v.gender,
+        bloodGroup: v.bloodGroup || undefined,
+        parentEmail: v.parentEmail?.trim() || undefined,
+        parentPhone: v.parentPhone?.trim(),
+        addressPermanent: v.addressPermanent?.trim() || undefined,
+        addressTemporary: v.addressTemporary?.trim() || undefined,
+        photoUrl: photoUrl || undefined,
+        photoPublicId: photoPublicId || undefined,
+      }
+
+      if (isEdit) {
+        // admissionDate is not accepted by PATCH
+        await updateStudent(base as UpdateStudentPayload)
+        toast.success('Student updated successfully')
+      } else {
+        const created = await createStudent({
+          ...base,
+          admissionDate: v.admissionDate || '',
+        } as CreateStudentPayload)
+
+        // Documents were already uploaded to storage during Step 1;
+        // now that the student exists, attach each one.
+        for (const doc of pendingDocs) {
+          await attachStudentDocument(created.data.id, doc)
+        }
+        toast.success('Student admitted successfully')
+        onSuccess?.()
+      }
+
       handleClose()
-    } catch {
-      toast.error('Please fix the highlighted errors')
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'errorFields' in err) {
+        toast.error('Please fix the highlighted errors before submitting')
+      } else {
+        toast.error((err as Error)?.message ?? 'Submission failed')
+      }
     }
   }
 
-  // Review summary
-  const values = Form.useWatch([], form) ?? {}
-
   return (
     <Drawer
-      title="New Student Admission"
+      title={isEdit ? `Edit — ${getFullName(student!)}` : 'New Student Admission'}
       open={open}
       onClose={handleClose}
-      size={DRAWER.widthXl}
+      size="large"
       destroyOnClose
+      afterOpenChange={handleAfterOpen}
       extra={
         <Space>
           <Button onClick={handleClose}>Cancel</Button>
           {step > 0 && <Button onClick={() => setStep((s) => s - 1)}>Back</Button>}
           {step < STEPS.length - 1
             ? <Button type="primary" style={{ background: colors.primary }} onClick={goNext}>Save & Next</Button>
-            : <Button type="primary" style={{ background: colors.primary }} onClick={onSubmit}>Submit Admission</Button>
+            : <Button type="primary" style={{ background: colors.primary }} loading={isSaving} onClick={onSubmit}>
+              {isEdit ? 'Save Changes' : 'Submit Admission'}
+            </Button>
           }
         </Space>
       }
     >
-      {/* Step bar */}
       <StepBar
         steps={STEPS.map((title) => ({ title }))}
         current={step}
-        onChange={setStep}
+        onChange={async (i) => {
+          if (i > step) {
+            try {
+              if (step === 0) {
+                await form.validateFields([
+                  'firstName', 'middleName', 'lastName', 'dateOfBirth',
+                  'gender', 'bloodGroup', 'parentPhone', 'parentEmail',
+                  'addressPermanent', 'addressTemporary',
+                ])
+              } else if (step === 1) {
+                await form.validateFields(
+                  isEdit
+                    ? ['academicYearId', 'classId', 'sectionId']
+                    : ['admissionDate', 'academicYearId', 'classId', 'sectionId']
+                )
+              }
+            } catch {
+              toast.error('Please fix highlighted errors before changing step')
+              return
+            }
+          }
+          // Capture a fresh snapshot whenever we navigate to the Review step
+          if (i === 2) setReviewValues({ ...form.getFieldsValue(true) })
+          setStep(i)
+        }}
+        freeNavigation={isEdit}
       />
 
-      <Form form={form} layout="vertical" requiredMark={false}>
+      <Form form={form} layout="vertical" requiredMark={false} preserve>
 
+        {/* ── Step 0 ── */}
         {step === 0 && (
-          <>
-            <ProfilePicturePicker value={photo} onChange={setPhoto} />
-
-            <Text strong style={{ fontSize: 13 }}>Personal Information</Text>
-            <Row gutter={16} style={{ marginTop: 12 }}>
-              <Col span={8}>
-                <Form.Item name="firstName" label="First Name" rules={[{ required: true, message: 'Required' }]}>
-                  <Input placeholder="First name" />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="middleName" label="Middle Name">
-                  <Input placeholder="Middle name" />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="lastName" label="Last Name" rules={[{ required: true, message: 'Required' }]}>
-                  <Input placeholder="Last name" />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="dob" label="Date of Birth" rules={[{ required: true, message: 'Required' }]}>
-                  <Input placeholder="YYYY-MM-DD" />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="gender" label="Gender" rules={[{ required: true, message: 'Required' }]}>
-                  <Select placeholder="Select gender" options={[
-                    { label: 'Male', value: 'MALE' },
-                    { label: 'Female', value: 'FEMALE' },
-                    { label: 'Other', value: 'OTHER' },
-                  ]} />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="bloodGroup" label="Blood Group">
-                  <Select allowClear placeholder="Select blood group"
-                    options={['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map((g) => ({ label: g, value: g }))}
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="phone" label="Contact Number">
-                  <Input placeholder="Phone number" />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="email" label="Email">
-                  <Input placeholder="Email address" type="email" />
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Text strong style={{ fontSize: 13 }}>Address</Text>
-            <Row gutter={16} style={{ marginTop: 12 }}>
-              <Col span={12}>
-                <Form.Item name="permanentAddress" label="Permanent Address">
-                  <Input.TextArea rows={2} placeholder="Permanent address (e.g. Kathmandu-10, Bagmati)" />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item name="temporaryAddress" label="Temporary Address">
-                  <Input.TextArea rows={2} placeholder="Temporary address (if different from permanent)" />
-                </Form.Item>
-              </Col>
-            </Row>
-          </>
+          <PersonalInfoStep
+            photoUrl={photoUrl}
+            onPhotoChange={(url, publicId) => {
+              setPhotoUrl(url)
+              setPhotoPublicId(publicId)
+            }}
+          />
         )}
 
-        {/* ── Step 2: Academic & Guardian ── */}
+        {/* ── Step 1 ── */}
         {step === 1 && (
           <>
             <Text strong style={{ fontSize: 13 }}>Academic Details</Text>
-            <Row gutter={16} style={{ marginTop: 12 }}>
-              <Col span={8}>
-                <Form.Item name="admissionNo" label="Admission Number" rules={[{ required: true, message: 'Required' }]}>
-                  <Input placeholder="ADM-2081-001" />
+            <Row gutter={16} style={{ marginTop: 12, marginBottom: 4 }}>
+              <Col span={12}>
+                <Form.Item
+                  name="admissionDate"
+                  label="Admission Date (BS)"
+                  rules={admissionDateValidationRules(isEdit, () => form.getFieldValue('dateOfBirth'))}
+                  extra={isEdit ? 'Admission date cannot be changed.' : undefined}
+                >
+                  <NepaliDatePicker placeholder="मिति छान्नुहोस्" size="middle" locale="ne"
+                    zIndex={1100} disabled={isEdit} />
                 </Form.Item>
               </Col>
-              <Col span={8}>
-                <Form.Item name="admissionDate" label="Admission Date" rules={[{ required: true, message: 'Required' }]}>
-                  <Input placeholder="YYYY-MM-DD" />
-                </Form.Item>
+              <Col span={12}>
+                <AcademicYearSelect />
               </Col>
               <Col span={8}>
-                <Form.Item name="academicYearId" label="Academic Year" rules={[{ required: true, message: 'Required' }]}>
-                  <Select placeholder="Select academic year"
-                    options={[{ label: '2081/82 (Current)', value: 'mock-year-1' }]}
-                  />
-                </Form.Item>
+                <ClassSelect form={form} />
               </Col>
               <Col span={8}>
-                <Form.Item name="classId" label="Class" rules={[{ required: true, message: 'Required' }]}>
-                  <Select placeholder="Select class" options={[
-                    { label: 'Class 5', value: 'cls-5' },
-                    { label: 'Class 6', value: 'cls-6' },
-                  ]} />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="sectionId" label="Section" rules={[{ required: true, message: 'Required' }]}>
-                  <Select placeholder="Select section" options={[
-                    { label: 'Section A', value: 'sec-a' },
-                    { label: 'Section B', value: 'sec-b' },
-                  ]} />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="rollNumber" label="Roll Number">
-                  <InputNumber min={1} style={{ width: '100%' }} placeholder="e.g. 1" />
-                </Form.Item>
+                <SectionSelect form={form} />
               </Col>
             </Row>
-
-            <Text strong style={{ fontSize: 13 }}>Parent / Guardian</Text>
-            <Row gutter={16} style={{ marginTop: 12 }}>
-              <Col span={8}>
-                <Form.Item name="fatherName" label="Father Name">
-                  <Input placeholder="Father's full name" />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="motherName" label="Mother Name">
-                  <Input placeholder="Mother's full name" />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="guardianName" label="Guardian Name">
-                  <Input placeholder="Guardian's name" />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="guardianPhone" label="Guardian Contact" rules={[{ required: true, message: 'Required' }]}>
-                  <Input placeholder="Guardian phone number" />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="guardianEmail" label="Guardian Email">
-                  <Input placeholder="Guardian email" type="email" />
-                </Form.Item>
-              </Col>
-              <Col span={8}>
-                <Form.Item name="relationship" label="Relationship">
-                  <Select allowClear placeholder="Relationship to student" options={[
-                    { label: 'Father', value: 'Father' },
-                    { label: 'Mother', value: 'Mother' },
-                    { label: 'Grandparent', value: 'Grandparent' },
-                    { label: 'Uncle / Aunt', value: 'Uncle/Aunt' },
-                    { label: 'Sibling', value: 'Sibling' },
-                    { label: 'Other', value: 'Other' },
-                  ]} />
-                </Form.Item>
-              </Col>
-            </Row>
+            <div style={{ borderTop: `1px solid ${colors.border}`, paddingTop: 20, marginTop: 8 }}>
+              <DocumentUploader
+                studentId={student?.id}
+                existingDocuments={student?.documents}
+                pendingDocs={pendingDocs}
+                onPendingDocsChange={setPendingDocs}
+              />
+            </div>
           </>
         )}
 
-        {/* ── Step 3: Review ── */}
+        {/* ── Step 2 — Review ── */}
         {step === 2 && (
-          <>
-            <Text strong style={{ fontSize: 13 }}>Review & Submit</Text>
-            <Descriptions bordered size="small" column={2} style={{ marginTop: 12, marginBottom: 20 }} title="Student Information">
-              <Descriptions.Item label="Name">
-                {[values.firstName, values.middleName, values.lastName].filter(Boolean).join(' ') || '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Date of Birth">{(values as any).dob || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Gender">{(values as any).gender || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Blood Group">{(values as any).bloodGroup || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Phone">{(values as any).phone || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Email">{(values as any).email || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Permanent Address" span={2}>{(values as any).permanentAddress || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Temporary Address" span={2}>{(values as any).temporaryAddress || '—'}</Descriptions.Item>
-            </Descriptions>
-            <Descriptions bordered size="small" column={2} title="Academic & Guardian">
-              <Descriptions.Item label="Admission No.">{(values as any).admissionNo || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Admission Date">{(values as any).admissionDate || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Class">{(values as any).classId || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Section">{(values as any).sectionId || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Roll Number">{(values as any).rollNumber || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Guardian Phone">{(values as any).guardianPhone || '—'}</Descriptions.Item>
-            </Descriptions>
-          </>
+          <ReviewStep
+            values={reviewValues}
+            photoUrl={photoUrl}
+            studentId={student?.id}
+            pendingDocs={pendingDocs} />
         )}
-
       </Form>
     </Drawer>
+  )
+}
+
+// ─── REVIEW STEP ─────────────────────────────────────────────────────────────
+// Standalone component so all hooks (Form.useWatch + data hooks) are called
+// unconditionally — no Rules-of-Hooks violations from conditional rendering.
+function ReviewStep({
+  values,
+  photoUrl,
+  studentId,
+  pendingDocs,
+}: {
+  values: Record<string, any>
+  photoUrl: string | null
+  studentId?: string,
+  pendingDocs: AttachDocumentPayload[]
+}) {
+  const { data: savedDocuments = [] } = useStudentDocuments(studentId)
+  const documents = studentId ? savedDocuments : pendingDocs
+  const firstName = values?.firstName ?? ''
+  const middleName = values?.middleName ?? ''
+  const lastName = values?.lastName ?? ''
+
+  const academicYearId = values?.academicYearId
+  const classId = values?.classId
+  const sectionId = values?.sectionId
+
+  const { data: yearsData, isLoading: yearsLoading } = useAcademicYears()
+  const { data: classesData, isLoading: classesLoading } = useClasses({
+    academicYearId,
+  })
+  const { data: sectionsData, isLoading: sectionsLoading } = useSections({
+    classId,
+  })
+
+  const yearLabel =
+    yearsData?.data?.find((y) => y.id === academicYearId)?.name ?? '—'
+
+  const classLabel =
+    classesData?.data?.find((c) => c.id === classId)?.name ?? '—'
+
+  const sectionLabel =
+    sectionsData?.data?.find((s) => s.id === sectionId)?.name ?? '—'
+
+  const fullName = [firstName, middleName, lastName]
+    .filter(Boolean)
+    .join(' ')
+
+  const reviewValue = (value: unknown) => {
+    if (value === undefined || value === null || value === '') return '—'
+    return String(value)
+  }
+
+  return (
+    <>
+      <Text strong style={{ fontSize: 13 }}>
+        Review & Submit
+      </Text>
+
+      {/* Profile Photo */}
+      {photoUrl ? (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            margin: '16px 0',
+          }}
+        >
+          <Image
+            src={photoUrl}
+            alt="Student"
+            width={90}
+            height={90}
+            preview
+            style={{
+              borderRadius: 8,
+              objectFit: 'cover',
+              border: `2px solid ${colors.primaryBorder}`,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
+            }}
+          />
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            margin: '16px 0',
+          }}
+        >
+          <Avatar
+            size={90}
+            style={{
+              background: colors.primaryLight,
+              color: colors.primary,
+              fontWeight: 700,
+              fontSize: 24,
+              border: `2px solid ${colors.primaryBorder}`,
+            }}
+          >
+            {initials(fullName || 'Student')}
+          </Avatar>
+        </div>
+      )}
+
+      {/* Student Information */}
+      <DescList
+        rows={[
+          {
+            label: 'Full Name',
+            value: fullName || '—',
+          },
+          {
+            label: 'Date of Birth (BS)',
+            value: reviewValue(values?.dateOfBirth),
+          },
+          {
+            label: 'Gender',
+            value: values?.gender ? titleCase(values.gender) : '—',
+          },
+          {
+            label: 'Blood Group',
+            value: reviewValue(values?.bloodGroup),
+          },
+          {
+            label: 'Parent Phone',
+            value: reviewValue(values?.parentPhone),
+          },
+          {
+            label: 'Parent Email',
+            value: reviewValue(values?.parentEmail),
+          },
+          {
+            label: 'Permanent Address',
+            value: reviewValue(values?.addressPermanent),
+            span: 2,
+          },
+          {
+            label: 'Temporary Address',
+            value: reviewValue(values?.addressTemporary),
+            span: 2,
+          },
+        ]}
+        title="Student Information"
+        style={{
+          marginTop: 8,
+          marginBottom: 16,
+        }}
+      />
+
+      {/* Academic Details */}
+      <DescList
+        rows={[
+          {
+            label: 'Admission Date (BS)',
+            value: reviewValue(values?.admissionDate),
+          },
+          {
+            label: 'Admission Date (AD)',
+            value: values?.admissionDate
+              ? bsIsoToAdIso(values.admissionDate)
+              : '—',
+          },
+          {
+            label: 'Academic Year',
+            value: yearsLoading ? <Spin size="small" /> : yearLabel,
+          },
+          {
+            label: 'Class',
+            value: classesLoading ? <Spin size="small" /> : classLabel,
+          },
+          {
+            label: 'Section',
+            value: sectionsLoading ? <Spin size="small" /> : sectionLabel,
+          },
+        ]}
+        title="Academic Details"
+        style={{
+          marginBottom: 16,
+        }}
+      />
+
+      {/* Documents */}
+      <div
+        style={{
+          border: `1px solid ${colors.border}`,
+          borderRadius: 8,
+          padding: 16,
+        }}
+      >
+        <Text
+          strong
+          style={{
+            fontSize: 13,
+            display: 'block',
+            marginBottom: 10,
+          }}
+        >
+          Documents
+        </Text>
+
+        {DOC_TYPES.map(({ type, label }) => {
+          const uploaded = documents.some((d) => d.documentType === type)
+
+          return (
+            <div
+              key={type}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 6,
+              }}
+            >
+              <Text style={{ fontSize: 13 }}>
+                {label}
+              </Text>
+
+              <Tag color={uploaded ? 'success' : 'default'}>
+                {uploaded ? 'Uploaded' : 'Not uploaded'}
+              </Tag>
+            </div>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+// ─── CASCADING ACADEMIC YEAR → CLASS → SECTION SELECTS ───────────────────────
+// Each component reads the parent value from Form.useWatch and fetches
+// the next level only when a value is selected. Clearing a parent resets
+// the children automatically.
+
+function AcademicYearSelect() {
+  const { data, isLoading } = useAcademicYears()
+  const years = data?.data ?? []
+
+  const options = years.map((y) => ({
+    label: `${y.name}${y.status === 'CURRENT' ? ' (Current)' : ''}`,
+    value: y.id,
+  }))
+
+  return (
+    <Form.Item name="academicYearId" label="Academic Year">
+      <Select
+        placeholder="Select academic year"
+        loading={isLoading}
+        options={options}
+        allowClear
+        showSearch
+        filterOption={(input, opt) =>
+          (opt?.label as string)?.toLowerCase().includes(input.toLowerCase())
+        }
+      />
+    </Form.Item>
+  )
+}
+
+function ClassSelect({ form }: { form: ReturnType<typeof Form.useForm>[0] }) {
+  const academicYearId = Form.useWatch(
+    'academicYearId',
+    form
+  ) as string | undefined
+
+  const previousAcademicYearId = useRef<string | undefined>(undefined)
+
+  const { data, isLoading } = useClasses({
+    academicYearId,
+  })
+
+  const classes = data?.data ?? []
+
+  useEffect(() => {
+    if (
+      previousAcademicYearId.current !== undefined &&
+      previousAcademicYearId.current !== academicYearId
+    ) {
+      form.setFieldValue('classId', undefined)
+      form.setFieldValue('sectionId', undefined)
+    }
+
+    previousAcademicYearId.current = academicYearId
+  }, [academicYearId, form])
+
+  const options = classes.map((c) => ({
+    label: c.name,
+    value: c.id,
+  }))
+
+  return (
+    <Form.Item name="classId" label="Class">
+      <Select
+        placeholder={
+          academicYearId
+            ? 'Select class'
+            : 'Select academic year first'
+        }
+        disabled={!academicYearId}
+        loading={isLoading}
+        options={options}
+        allowClear
+        showSearch
+        filterOption={(input, opt) =>
+          (opt?.label as string)
+            ?.toLowerCase()
+            .includes(input.toLowerCase())
+        }
+      />
+    </Form.Item>
+  )
+}
+
+function SectionSelect({
+  form,
+}: {
+  form: ReturnType<typeof Form.useForm>[0]
+}) {
+  const classId = Form.useWatch(
+    'classId',
+    form
+  ) as string | undefined
+
+  const previousClassId = useRef<string | undefined>(undefined)
+
+  const { data, isLoading } = useSections({
+    classId,
+  })
+
+  const sections = data?.data ?? []
+
+  useEffect(() => {
+    if (
+      previousClassId.current !== undefined &&
+      previousClassId.current !== classId
+    ) {
+      form.setFieldValue('sectionId', undefined)
+    }
+
+    previousClassId.current = classId
+  }, [classId, form])
+
+  const options = sections.map((s) => ({
+    label: s.name,
+    value: s.id,
+  }))
+
+  return (
+    <Form.Item name="sectionId" label="Section">
+      <Select
+        placeholder={
+          classId
+            ? 'Select section'
+            : 'Select class first'
+        }
+        disabled={!classId}
+        loading={isLoading}
+        options={options}
+        allowClear
+        showSearch
+        filterOption={(input, opt) =>
+          (opt?.label as string)
+            ?.toLowerCase()
+            .includes(input.toLowerCase())
+        }
+      />
+    </Form.Item>
   )
 }

@@ -1,0 +1,8 @@
+export { useStudents } from './hooks/useStudents'
+export { useStudent } from './hooks/useStudent'
+export { useCreateStudent } from './hooks/useCreateStudent'
+export { useUpdateStudent } from './hooks/useUpdateStudent'
+export { useUpdateStudentStatus } from './hooks/useUpdateStudentStatus'
+export { useDeactivateStudent } from './hooks/useDeactivateStudent'
+export { useRestoreStudent } from './hooks/useRestoreStudent'
+export { useUploadStudentPhoto } from './hooks/useUploadStudentPhoto'

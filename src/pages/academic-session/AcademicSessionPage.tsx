@@ -38,42 +38,29 @@ import { SearchAndFilter } from '../../components/common/SearchAndFilter'
 import { appConfirm } from '../../components/common/AppConfirm'
 import { bsIsoToAdIso, adIsoToBsIso, formatBsDateFromAd } from '../../utils/nepaliDate'
 import { colors, DRAWER } from '../../lib/designTokens'
-import { useQueryClient } from '@tanstack/react-query'
-import client from '../../lib/api/client'
 import { useGet } from '../../lib/api/hooks/useGet'
 import { ENDPOINTS } from '../../lib/api/endpoints'
-
-import { type ApiResponse, type ApiPaginatedResponse } from '../../lib/api/types'
+import type { ApiPaginatedResponse } from '../../lib/api/types'
 import { usePermission } from '../../context/PermissionContext'
 import { FEATURES, ACTIONS } from '../../utils/permissions'
+import {
+    useAcademicYearSummary,
+    useCreateAcademicYear,
+    useUpdateAcademicYear,
+    useSetCurrentAcademicYear,
+    useCloneAcademicYear,
+    useArchiveAcademicYear,
+    type AcademicYear,
+} from '../../features/academic-years'
 
 const { Title, Text } = Typography
 
-type SessionStatus = 'CURRENT' | 'UPCOMING' | 'ARCHIVED'
-
-export interface AcademicSession {
-    id: string
-    createdAt: string
-    updatedAt: string
-    deletedAt: string | null
-    name: string
-    startDate: string
-    endDate: string
-    status: SessionStatus
-}
-
-interface AcademicYearSummary {
-    rotalSessions: number
-    currentSession: {
-        id: string
-        name: string
-    }
-    upcommingSession: number
-}
+// AcademicSession is AcademicYear — re-export as alias for local clarity
+type AcademicSession = AcademicYear
 
 export default function AcademicSessionPage() {
     // Summary Query
-    const { data: summaryResponse, isLoading: summaryLoading, isFetching: summaryFetching } = useGet<ApiResponse<AcademicYearSummary>>(ENDPOINTS.ACADEMIC_YEARS.SUMMARY)
+    const { data: summaryResponse, isLoading: summaryLoading, isFetching: summaryFetching } = useAcademicYearSummary()
     const summary = summaryResponse?.data
     const isSummaryLoading = summaryLoading || summaryFetching
 
@@ -85,16 +72,15 @@ export default function AcademicSessionPage() {
     const [sortBy, setSortBy] = useState<string>('startDate')
     const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC')
 
-    const statusFilter = filterValues['status'] as SessionStatus | undefined
+    const statusFilter = filterValues['status'] as AcademicSession['status'] | undefined
 
-    // List Query
+    // List Query (paginated with filters — kept as useGet for dynamic params)
     const queryParams = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
         sortBy,
-        sortOrder
+        sortOrder,
     })
-
     if (q) queryParams.append('search', q)
     if (statusFilter) queryParams.append('status', statusFilter)
 
@@ -104,29 +90,21 @@ export default function AcademicSessionPage() {
 
     const rows = listResponse?.data || []
     const meta = listResponse?.meta
-
     const current = rows.find((s) => s.status === 'CURRENT')
 
-    // Drawer / Mutation State
-    const queryClient = useQueryClient()
+    // Drawer state
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [editing, setEditing] = useState<AcademicSession | null>(null)
     const [viewing, setViewing] = useState<AcademicSession | null>(null)
-    const [isSubmitting, setIsSubmitting] = useState(false)
     const [form] = Form.useForm<{ name: string; range: BsDateRange | undefined }>()
 
-    const invalidateAcademicData = () => {
-        queryClient.invalidateQueries({
-            predicate: (query) => {
-                const key = query.queryKey[0]
-                return (
-                    typeof key === 'string' &&
-                    (key.startsWith(ENDPOINTS.ACADEMIC_YEARS.LIST) ||
-                        key.startsWith(ENDPOINTS.ACADEMIC_YEARS.SUMMARY))
-                )
-            },
-        })
-    }
+    // Mutations
+    const { mutateAsync: createYear, isPending: isCreating } = useCreateAcademicYear()
+    const { mutateAsync: updateYear, isPending: isUpdating } = useUpdateAcademicYear(editing?.id ?? '')
+    const { mutateAsync: setCurrent } = useSetCurrentAcademicYear()
+    const { mutateAsync: cloneYear } = useCloneAcademicYear()
+    const { mutateAsync: archiveYear } = useArchiveAcademicYear()
+    const isSubmitting = isCreating || isUpdating
 
     const filterColumns = [
         { key: 'name', title: 'Academic Year', isSearchable: true },
@@ -151,7 +129,6 @@ export default function AcademicSessionPage() {
 
     const openEdit = (s: AcademicSession) => {
         setEditing(s)
-        // Convert stored AD dates to BS for the picker
         form.setFieldsValue({
             name: s.name,
             range: { from: adIsoToBsIso(s.startDate), to: adIsoToBsIso(s.endDate) },
@@ -167,8 +144,7 @@ export default function AcademicSessionPage() {
                 form.setFields([{ name: 'range', errors: ['Please select session dates'] }])
                 return
             }
-            setIsSubmitting(true)
-            // Convert BS dates to AD before sending to API
+
             const payload = {
                 name: values.name.trim(),
                 startDate: bsIsoToAdIso(range.from),
@@ -176,19 +152,16 @@ export default function AcademicSessionPage() {
             }
 
             if (editing) {
-                await client.patch(ENDPOINTS.ACADEMIC_YEARS.DETAIL(editing.id), payload)
+                await updateYear(payload)
                 toast.success('Academic session updated successfully')
             } else {
-                await client.post(ENDPOINTS.ACADEMIC_YEARS.BASE, payload)
+                await createYear(payload)
                 toast.success('Academic session created successfully')
             }
-            invalidateAcademicData()
             setDrawerOpen(false)
         } catch (err: any) {
             if (err?.errorFields) return
             toast.error(err?.response?.data?.message || err?.message || 'Operation failed')
-        } finally {
-            setIsSubmitting(false)
         }
     }
 
@@ -201,9 +174,8 @@ export default function AcademicSessionPage() {
             cancelText: 'Cancel',
             onOk: async () => {
                 try {
-                    await client.post(ENDPOINTS.ACADEMIC_YEARS.SET_CURRENT(s.id))
+                    await setCurrent(s.id)
                     toast.success(`Academic session ${s.name} is now current`)
-                    invalidateAcademicData()
                 } catch (err: any) {
                     toast.error(err?.response?.data?.message || err?.message || 'Failed to set as current session')
                 }
@@ -220,9 +192,8 @@ export default function AcademicSessionPage() {
             cancelText: 'Cancel',
             onOk: async () => {
                 try {
-                    await client.post(ENDPOINTS.ACADEMIC_YEARS.CLONE(s.id))
+                    await cloneYear(s.id)
                     toast.success(`Academic session ${s.name} cloned successfully`)
-                    invalidateAcademicData()
                 } catch (err: any) {
                     toast.error(err?.response?.data?.message || err?.message || 'Failed to clone academic session')
                 }
@@ -239,9 +210,8 @@ export default function AcademicSessionPage() {
             cancelText: 'Cancel',
             onOk: async () => {
                 try {
-                    await client.post(ENDPOINTS.ACADEMIC_YEARS.ARCHIVE(s.id))
+                    await archiveYear(s.id)
                     toast.success('Academic session archived')
-                    invalidateAcademicData()
                 } catch (err: any) {
                     toast.error(err?.response?.data?.message || err?.message || 'Failed to archive academic session')
                 }
@@ -279,7 +249,7 @@ export default function AcademicSessionPage() {
             title: 'Status',
             dataIndex: 'status',
             key: 'status',
-            render: (val: SessionStatus) => <StatusBadge status={val} />,
+            render: (val: AcademicSession['status']) => <StatusBadge status={val} />,
         },
         {
             title: 'Actions',
@@ -295,46 +265,38 @@ export default function AcademicSessionPage() {
                         onClick: () => setViewing(r),
                     },
                     ...(canApprove && r.status !== 'CURRENT'
-                        ? [
-                            {
-                                key: 'set-current',
-                                label: <span style={{ color: colors.primary, fontWeight: 500 }}>Set as Current</span>,
-                                icon: <CheckCircleOutlined style={{ color: colors.primary }} />,
-                                onClick: () => handleSetCurrent(r),
-                            },
-                        ]
+                        ? [{
+                            key: 'set-current',
+                            label: <span style={{ color: colors.primary, fontWeight: 500 }}>Set as Current</span>,
+                            icon: <CheckCircleOutlined style={{ color: colors.primary }} />,
+                            onClick: () => handleSetCurrent(r),
+                        }]
                         : []),
                     ...(canUpdate
-                        ? [
-                            {
-                                key: 'edit',
-                                label: 'Edit',
-                                icon: <EditOutlined />,
-                                onClick: () => openEdit(r),
-                            },
-                        ]
+                        ? [{
+                            key: 'edit',
+                            label: 'Edit',
+                            icon: <EditOutlined />,
+                            onClick: () => openEdit(r),
+                        }]
                         : []),
                     ...(canCreate
-                        ? [
-                            {
-                                key: 'clone',
-                                label: 'Clone',
-                                icon: <CopyOutlined />,
-                                onClick: () => cloneSession(r),
-                            },
-                        ]
+                        ? [{
+                            key: 'clone',
+                            label: 'Clone',
+                            icon: <CopyOutlined />,
+                            onClick: () => cloneSession(r),
+                        }]
                         : []),
                     ...(canArchive
-                        ? [
-                            {
-                                key: 'archive',
-                                label: 'Archive',
-                                danger: true,
-                                icon: <InboxOutlined />,
-                                disabled: r.status === 'ARCHIVED',
-                                onClick: () => archiveSession(r),
-                            },
-                        ]
+                        ? [{
+                            key: 'archive',
+                            label: 'Archive',
+                            danger: true,
+                            icon: <InboxOutlined />,
+                            disabled: r.status === 'ARCHIVED',
+                            onClick: () => archiveSession(r),
+                        }]
                         : []),
                 ]
 
@@ -384,7 +346,7 @@ export default function AcademicSessionPage() {
                         variant="default"
                         size="middle"
                         label="Total Sessions"
-                        value={isSummaryLoading ? <Skeleton.Input active size="small" style={{ width: 44, height: 20 }} /> : (summary?.rotalSessions ?? 0)}
+                        value={isSummaryLoading ? <Skeleton.Input active size="small" style={{ width: 44, height: 20 }} /> : (summary?.totalSessions ?? 0)}
                         icon={<CalendarOutlined />}
                         color={colors.primary}
                         iconBg={colors.primaryLight}
@@ -406,7 +368,7 @@ export default function AcademicSessionPage() {
                         variant="default"
                         size="middle"
                         label="Upcoming"
-                        value={isSummaryLoading ? <Skeleton.Input active size="small" style={{ width: 44, height: 20 }} /> : (summary?.upcommingSession ?? 0)}
+                        value={isSummaryLoading ? <Skeleton.Input active size="small" style={{ width: 44, height: 20 }} /> : (summary?.upcomingSession ?? 0)}
                         icon={<ClockCircleOutlined />}
                         color={colors.warning}
                         iconBg={colors.warningLight}
@@ -417,7 +379,6 @@ export default function AcademicSessionPage() {
             {/* Filter & Main Content Layout */}
             <Row gutter={[16, 16]}>
                 <Col xs={24} lg={16}>
-                    {/* Filter Bar */}
                     <SearchAndFilter
                         columns={filterColumns}
                         searchValue={q}
@@ -426,11 +387,10 @@ export default function AcademicSessionPage() {
                         filterValues={filterValues}
                         onFilterChange={(key, value) => {
                             setFilterValues((prev) => ({ ...prev, [key]: value }))
-                            setPage(1) // Reset page on filter change
+                            setPage(1)
                         }}
                     />
 
-                    {/* Table Skeleton or AppTable */}
                     {isTableLoading || isTableFetching ? (
                         <div
                             style={{
@@ -452,8 +412,7 @@ export default function AcademicSessionPage() {
                             onChange={(pagination, _filters, sorter: any) => {
                                 setPage(pagination.current || 1)
                                 setLimit(pagination.pageSize || 10)
-
-                                if (sorter && sorter.field) {
+                                if (sorter?.field) {
                                     setSortBy(sorter.field)
                                     setSortOrder(sorter.order === 'ascend' ? 'ASC' : 'DESC')
                                 }

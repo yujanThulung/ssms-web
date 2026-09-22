@@ -1,4 +1,7 @@
 export const ENDPOINTS = {
+  UPLOADS: {
+    BASE: '/uploads',
+  },
   AUTH: {
     LOGIN: '/auth/login',
     REGISTER: '/auth/register',
@@ -12,7 +15,11 @@ export const ENDPOINTS = {
   },
   STUDENTS: {
     BASE: '/students',
-    DETAIL: (id: string | number) => `/students/${id}`,
+    DETAIL:     (id: string) => `/students/${id}`,
+    STATUS:     (id: string) => `/students/${id}/status`,
+    DEACTIVATE: (id: string) => `/students/${id}/deactivate`,
+    RESTORE:    (id: string) => `/students/${id}/restore`,
+    PROMOTE: '/students/promote',
   },
   ACCOUNTS: {
     BASE: '/accounts',

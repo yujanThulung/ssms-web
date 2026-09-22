@@ -1,4 +1,11 @@
-import type { Section, MockTeacher } from './types'
+import type { Section } from '../../features/sections'
+
+export interface MockTeacher {
+  id: string
+  name: string
+  department: string
+  status: string
+}
 
 export const MOCK_SECTIONS: Section[] = [
   { id: 'sec-1', classId: 'cls-1', name: 'A', code: 'CLS1-A', capacity: 40, classTeacherId: 'tch-1', status: 'ACTIVE',   createdAt: '2025-01-12T00:00:00.000Z', updatedAt: '2025-01-12T00:00:00.000Z', deletedAt: null },
