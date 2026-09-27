@@ -9,6 +9,7 @@ import {
   BookOpen,
   List,
   ArrowUpCircle,
+  Tags,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { FEATURES } from '../utils'
@@ -35,8 +36,8 @@ export const people: SidebarItem[] = [
     feature: FEATURES.STUDENT,
     alwaysVisible: true,
     children: [
-      { title: 'All Students',      url: '/students',         icon: List,         feature: FEATURES.STUDENT, alwaysVisible: true },
-      { title: 'Promote Students',  url: '/students/promote', icon: ArrowUpCircle, feature: FEATURES.STUDENT, alwaysVisible: true },
+      { title: 'All Students', url: '/students', icon: List, feature: FEATURES.STUDENT, alwaysVisible: true },
+      { title: 'Promote Students', url: '/students/promote', icon: ArrowUpCircle, feature: FEATURES.STUDENT, alwaysVisible: true },
     ],
   },
   { title: 'Users', url: '/users', icon: Users, feature: FEATURES.USER },
@@ -49,6 +50,7 @@ export const accounts: SidebarItem[] = [
 export const masterSetup: SidebarItem[] = [
   { title: 'Academic Session', url: '/academic-session', icon: CalendarRange, feature: FEATURES.ACADEMIC_YEAR },
   { title: 'Classes & Sections', url: '/classes', icon: BookOpen, feature: FEATURES.CLASS_SECTION },
+  { title: 'Fee Categories', url: '/fee-categories', icon: Tags, feature: FEATURES.ACCOUNT },
   { title: 'Permissions', url: '/permissions', icon: ShieldCheck, feature: 'role' },
 ]
 

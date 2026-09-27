@@ -96,6 +96,7 @@ function getGroupItems(
   return [
     {
       type: 'group',
+      key: `group-${label.toLowerCase().replace(/\s+/g, '-')}`,
       label: (
         <span style={{
           fontSize: 10,

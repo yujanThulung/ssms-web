@@ -18,7 +18,7 @@ createRoot(document.getElementById('root')!).render(
         <AuthProvider>
           <PermissionProvider>
             <AppRouter />
-            <Toaster richColors position="top-center" duration={3000} />
+            <Toaster richColors position="top-center" duration={4000} />
           </PermissionProvider>
         </AuthProvider>
         <ReactQueryDevtools initialIsOpen={false} />

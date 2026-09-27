@@ -28,6 +28,12 @@ export const ENDPOINTS = {
     BASE: '/accounts',
     DETAIL: (id: string | number) => `/accounts/${id}`,
   },
+  FEE_CATEGORIES: {
+    BASE: '/fee-categories',
+    DETAIL: (id: string | number) => `/fee-categories/${id}`,
+    ACTIVATE: (id: string | number) => `/fee-categories/${id}/activate`,
+    DEACTIVATE: (id: string | number) => `/fee-categories/${id}/deactivate`,
+  },
   PERMISSIONS: {
     LIST: '/permissions',
     DETAIL: (id: string | number) => `/permissions/${id}`,
