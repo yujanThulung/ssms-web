@@ -282,8 +282,28 @@ export default function StudentsPage() {
       render: (v: string) => mono(v?.slice(0, 10)),
     },
     {
-      title: 'Status', dataIndex: 'status',
-      render: (v: string) => <StatusBadge status={v} />,
+      title: 'Status', key: 'status',
+      render: (_: unknown, s: Student) => {
+        const isTerminal = s.status === 'TRANSFERRED_OUT' || s.status === 'GRADUATED'
+        const isClickable = canUpdate && !isTerminal
+        return (
+          <div
+            onClick={(e) => {
+              if (isClickable) {
+                e.stopPropagation()
+                setStatusStudent(s)
+              }
+            }}
+            style={{
+              display: 'inline-block',
+              cursor: isClickable ? 'pointer' : 'default',
+            }}
+            title={isClickable ? 'Click to change status' : undefined}
+          >
+            <StatusBadge status={s.status} />
+          </div>
+        )
+      },
     },
     {
       title: 'Actions', key: 'actions', fixed: 'right', width: 148, align: 'center',
