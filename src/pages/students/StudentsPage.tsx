@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Avatar, Button, Col, Descriptions, Drawer, Image,
+  Avatar, Button, Col, Descriptions, Drawer, Image, Input,
   Form, Modal, Row, Select, Space, Tabs,
   Typography, Spin, Tag, type TablePaginationConfig,
 } from 'antd'
@@ -37,6 +37,7 @@ import {
   useStudents, useStudent, useCreateStudent, useUploadStudentPhoto,
   useUpdateStudent, useUpdateStudentStatus,
   useDeactivateStudent, useRestoreStudent,
+  useStudentEnrollments, useCheckRollNumber,
 } from '../../features/students'
 import { PersonalInfoStep } from './PersonalInfoStep'
 import type {
@@ -59,6 +60,22 @@ const { Title, Text } = Typography
 function getFullName(s: Student) {
   if (s.fullName) return s.fullName
   return [s.firstName, s.middleName, s.lastName].filter(Boolean).join(' ')
+}
+
+function getStudentEnrollment(s?: Student | null) {
+  if (!s) return null
+  const en = s.currentEnrollment ?? s.enrollment
+  if (!en) return null
+  return {
+    ...en,
+    academicYearId: en.academicYearId ?? en.academicYear?.id ?? '',
+    academicYearName: en.academicYearName ?? en.academicYear?.name ?? en.academicYearId ?? '—',
+    classId: en.classId ?? en.class?.id ?? '',
+    className: en.className ?? en.class?.name ?? en.classId ?? '—',
+    sectionId: en.sectionId ?? en.section?.id ?? '',
+    sectionName: en.sectionName ?? en.section?.name ?? en.sectionId ?? '—',
+    rollNumber: en.rollNumber ?? null,
+  }
 }
 
 function initials(name: string) {
@@ -97,8 +114,6 @@ const GENDER_OPTIONS = [
   { label: 'Other', value: 'OTHER' },
 ]
 
-const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-']
-const BLOOD_GROUP_OPTIONS = BLOOD_GROUPS.map((g) => ({ label: g, value: g }))
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
@@ -122,20 +137,46 @@ export default function StudentsPage() {
     status: filterValues['status'] as StudentStatus | undefined,
     gender: filterValues['gender'] as Gender | undefined,
     bloodGroup: filterValues['bloodGroup'] as BloodGroup | undefined,
+    academicYearId: filterValues['academicYearId'] as string | undefined,
+    classId: filterValues['classId'] as string | undefined,
+    sectionId: filterValues['sectionId'] as string | undefined,
     admissionDateFrom: admissionRange?.from ? bsIsoToAdIso(admissionRange.from) : undefined,
     admissionDateTo: admissionRange?.to ? bsIsoToAdIso(admissionRange.to) : undefined,
     page, limit,
   }
 
+  const { data: yearsData } = useAcademicYears()
+  const { data: classesData } = useClasses({ requireAcademicYear: false })
+  const { data: sectionsData } = useSections({ requireClassId: false })
+
+  const selectedYearId = filterValues['academicYearId']
+  const selectedClassId = filterValues['classId']
+
+  const yearFilterOptions = (yearsData?.data ?? []).map((y) => ({
+    label: `${y.name}${y.status === 'CURRENT' ? ' (Current)' : ''}`,
+    value: y.id,
+  }))
+  const classFilterOptions = (classesData?.data ?? [])
+    .filter((c) => !selectedYearId || c.academicYearId === selectedYearId)
+    .map((c) => ({
+      label: c.name,
+      value: c.id,
+    }))
+  const sectionFilterOptions = (sectionsData?.data ?? [])
+    .filter((s) => !selectedClassId || s.classId === selectedClassId)
+    .map((s) => ({
+      label: s.name,
+      value: s.id,
+    }))
   const { data, isLoading } = useStudents(listParams)
-  const students = data?.data ?? []
+  const students = data?.data?.items ?? []
+  const stats = data?.data?.stats
   const meta = data?.meta
 
-  const total = meta?.total ?? 0
-  const active = students.filter((s) => s.status === 'ACTIVE').length
-  const inactive = students.filter((s) => s.status === 'INACTIVE' || s.status === 'SUSPENDED').length
-  const classes = new Set(students.map((s) => s.enrollment?.classId).filter(Boolean)).size
-
+  const total = stats?.totalStudents ?? meta?.total ?? 0
+  const active = stats?.activeStudents ?? students.filter((s) => s.status === 'ACTIVE').length
+  const inactive = stats?.inactiveOrSuspended ?? students.filter((s) => s.status === 'INACTIVE' || s.status === 'SUSPENDED').length
+  const classes = stats?.classes ?? new Set(students.map((s) => s.enrollment?.classId).filter(Boolean)).size
   const { id: paramStudentId } = useParams<{ id?: string }>()
   const navigate = useNavigate()
 
@@ -172,12 +213,14 @@ export default function StudentsPage() {
       isSearchable: true,
       placeholder: 'Name, admission no, phone, address…',
     },
+    { key: 'academicYearId', title: 'Academic Year', isFilterable: true, filterWidth: 160, filterOptions: yearFilterOptions },
+    { key: 'classId', title: 'Class', isFilterable: true, filterWidth: 140, filterOptions: classFilterOptions },
+    { key: 'sectionId', title: 'Section', isFilterable: true, filterWidth: 130, filterOptions: sectionFilterOptions },
     { key: 'gender', title: 'Gender', isFilterable: true, filterWidth: 130, filterOptions: GENDER_OPTIONS },
     {
       key: 'status', title: 'Status', isFilterable: true, filterWidth: 170,
       filterOptions: Object.entries(STATUS_LABELS).map(([value, label]) => ({ label, value })),
     },
-    { key: 'bloodGroup', title: 'Blood Group', isFilterable: true, filterWidth: 120, filterOptions: BLOOD_GROUP_OPTIONS },
     { key: 'admissionDate', title: 'Admission Date', isDateRange: true, dateRangeWidth: 240 },
   ]
 
@@ -202,17 +245,25 @@ export default function StudentsPage() {
     },
     {
       title: 'Class / Section', key: 'class',
-      render: (_: unknown, s: Student) => s.enrollment
-        ? `${s.enrollment.className ?? ''} / ${s.enrollment.sectionName ?? ''}`
-        : '—',
+      render: (_: unknown, s: Student) => {
+        const en = getStudentEnrollment(s)
+        return en ? `${en.className} / ${en.sectionName}` : '—'
+      },
     },
     {
       title: 'Roll No.', key: 'rollNo', width: 90,
-      render: (_: unknown, s: Student) => mono(s.enrollment?.rollNumber ?? undefined),
+      render: (_: unknown, s: Student) => {
+        const en = getStudentEnrollment(s)
+        return mono(en?.rollNumber ?? undefined)
+      },
     },
     {
       title: 'Gender', dataIndex: 'gender', width: 90,
       render: (v: Gender) => titleCase(v),
+    },
+    {
+      title: 'Guardian Name', key: 'guardianName',
+      render: (_: unknown, s: Student) => s.guardianName || s.fatherName || s.motherName || '—',
     },
     {
       title: 'Contact', key: 'contact',
@@ -463,6 +514,12 @@ function StudentDetailDrawer({
   const activeId = propStudentId || initialStudent?.id
   const { data: detailData, isLoading } = useStudent(activeId ?? undefined)
   const student = detailData?.data ?? initialStudent
+  const { data: enrollmentsData, isLoading: enrollmentsLoading } = useStudentEnrollments(activeId ?? undefined)
+
+  // Fetch reference data to resolve names if the backend doesn't provide them
+  const { data: yearsData } = useAcademicYears()
+  const { data: classesData } = useClasses({ requireAcademicYear: false })
+  const { data: sectionsData } = useSections({ requireClassId: false })
 
   if (!activeId) return null
 
@@ -489,6 +546,12 @@ function StudentDetailDrawer({
     { label: 'Gender', value: titleCase(student.gender) },
     { label: 'Blood Group', value: student.bloodGroup },
     { label: 'Status', value: <StatusBadge status={student.status} /> },
+    { label: 'Father Name', value: student.fatherName },
+    { label: 'Mother Name', value: student.motherName },
+    { label: 'Guardian Name', value: student.guardianName },
+    { label: 'Guardian Relation', value: student.guardianRelation },
+    { label: 'Guardian Phone', value: student.guardianPhone },
+    { label: 'Guardian Email', value: student.guardianEmail },
     { label: 'Parent Phone', value: student.parentPhone },
     { label: 'Parent Email', value: student.parentEmail },
     { label: 'Admission Date', value: student.admissionDate },
@@ -555,21 +618,27 @@ function StudentDetailDrawer({
         </div>
       )}
 
-      {student.enrollment ? (
-        <div style={{ padding: 16, background: colors.primaryLight, border: `1px solid ${colors.primaryBorder}`, borderRadius: 8, marginBottom: 20 }}>
-          <Text strong style={{ fontSize: 13, color: colors.primary }}>Current Enrollment</Text>
-          <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
-            <Descriptions.Item label="Academic Year">{student.enrollment.academicYearName}</Descriptions.Item>
-            <Descriptions.Item label="Class">{student.enrollment.className}</Descriptions.Item>
-            <Descriptions.Item label="Section">Section {student.enrollment.sectionName}</Descriptions.Item>
-            <Descriptions.Item label="Roll No.">{student.enrollment.rollNumber ?? '—'}</Descriptions.Item>
-          </Descriptions>
-        </div>
-      ) : (
-        <div style={{ padding: 16, background: colors.warningLight, border: `1px solid ${colors.warning}40`, borderRadius: 8, marginBottom: 20 }}>
-          <Text style={{ color: colors.warning, fontSize: 13 }}>No active enrollment for this student.</Text>
-        </div>
-      )}
+      {(() => {
+        const en = getStudentEnrollment(student)
+        if (en) {
+          return (
+            <div style={{ padding: 16, background: colors.primaryLight, border: `1px solid ${colors.primaryBorder}`, borderRadius: 8, marginBottom: 20 }}>
+              <Text strong style={{ fontSize: 13, color: colors.primary }}>Current Enrollment</Text>
+              <Descriptions column={2} size="small" style={{ marginTop: 8 }}>
+                <Descriptions.Item label="Academic Year">{en.academicYearName}</Descriptions.Item>
+                <Descriptions.Item label="Class">{en.className}</Descriptions.Item>
+                <Descriptions.Item label="Section">Section {en.sectionName}</Descriptions.Item>
+                <Descriptions.Item label="Roll No.">{en.rollNumber ?? '—'}</Descriptions.Item>
+              </Descriptions>
+            </div>
+          )
+        }
+        return (
+          <div style={{ padding: 16, background: colors.warningLight, border: `1px solid ${colors.warning}40`, borderRadius: 8, marginBottom: 20 }}>
+            <Text style={{ color: colors.warning, fontSize: 13 }}>No active enrollment for this student.</Text>
+          </div>
+        )
+      })()}
 
       <Tabs items={[
         { key: 'profile', label: 'Profile', children: <DescList rows={profileRows} /> },
@@ -581,8 +650,47 @@ function StudentDetailDrawer({
                 studentId={student.id}
                 existingDocuments={student.documents}
                 pendingDocs={[]}
-                onPendingDocsChange={() => {}}
+                onPendingDocsChange={() => { }}
               />
+            </div>
+          ),
+        },
+        {
+          key: 'enrollments', label: 'Enrollment History',
+          children: (
+            <div style={{ paddingTop: 8 }}>
+              {enrollmentsLoading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
+                  <Spin indicator={<LoadingOutlined spin />} />
+                </div>
+              ) : !enrollmentsData?.data?.length ? (
+                <div style={{ textAlign: 'center', padding: 32, color: colors.muted }}>
+                  <BookOutlined style={{ fontSize: 32, marginBottom: 8, display: 'block' }} />
+                  <Text type="secondary">No enrollment history yet.</Text>
+                </div>
+              ) : (
+                <Descriptions bordered size="small" column={2}>
+                  {enrollmentsData.data.map((en) => (
+                    <>
+                      <Descriptions.Item key={`${en.id}-yr`} label="Academic Year" span={2}>
+                        {(en as any).academicYearName ?? yearsData?.data?.find(y => y.id === en.academicYearId)?.name ?? en.academicYearId}
+                      </Descriptions.Item>
+                      <Descriptions.Item key={`${en.id}-cls`} label="Class">
+                        {(en as any).className ?? classesData?.data?.find(c => c.id === en.classId)?.name ?? en.classId}
+                      </Descriptions.Item>
+                      <Descriptions.Item key={`${en.id}-sec`} label="Section">
+                        {(en as any).sectionName ?? sectionsData?.data?.find(s => s.id === en.sectionId)?.name ?? en.sectionId}
+                      </Descriptions.Item>
+                      <Descriptions.Item key={`${en.id}-roll`} label="Roll No.">
+                        {en.rollNumber ?? '—'}
+                      </Descriptions.Item>
+                      <Descriptions.Item key={`${en.id}-status`} label="Status">
+                        <Tag color={en.status === 'ACTIVE' ? 'green' : 'default'}>{en.status}</Tag>
+                      </Descriptions.Item>
+                    </>
+                  ))}
+                </Descriptions>
+              )}
             </div>
           ),
         },
@@ -938,6 +1046,8 @@ function StudentFormDrawer({ open, student, onClose, onSuccess }: {
       }
     }
 
+    const en = getStudentEnrollment(student)
+
     form.setFieldsValue({
       firstName: student.firstName,
       middleName: student.middleName ?? '',
@@ -945,14 +1055,21 @@ function StudentFormDrawer({ open, student, onClose, onSuccess }: {
       dateOfBirth: getBsDateStr(student.dateOfBirth),
       gender: student.gender,
       bloodGroup: student.bloodGroup ?? undefined,
+      fatherName: student.fatherName ?? '',
+      motherName: student.motherName ?? '',
+      guardianName: student.guardianName ?? '',
+      guardianRelation: student.guardianRelation ?? '',
+      guardianPhone: student.guardianPhone ?? '',
+      guardianEmail: student.guardianEmail ?? '',
       parentPhone: student.parentPhone ?? '',
       parentEmail: student.parentEmail ?? '',
       addressPermanent: student.addressPermanent ?? '',
       addressTemporary: student.addressTemporary ?? '',
       admissionDate: getBsDateStr(student.admissionDate),
-      academicYearId: (student.enrollment as any)?.academicYearId,
-      classId: student.enrollment?.classId,
-      sectionId: (student.enrollment as any)?.sectionId,
+      academicYearId: en?.academicYearId,
+      classId: en?.classId,
+      sectionId: en?.sectionId,
+      rollNumber: en?.rollNumber ?? undefined,
     })
     setPhotoUrl(student.photoUrl ?? null)
     setPhotoPublicId((student as any).photoPublicId ?? null)
@@ -963,10 +1080,14 @@ function StudentFormDrawer({ open, student, onClose, onSuccess }: {
       0: [
         'firstName', 'middleName', 'lastName',
         'dateOfBirth', 'gender', 'bloodGroup',
+        'fatherName', 'motherName', 'guardianName',
+        'guardianRelation', 'guardianPhone', 'guardianEmail',
         'parentPhone', 'parentEmail',
         'addressPermanent', 'addressTemporary',
       ],
-      1: isEdit ? ['academicYearId', 'classId', 'sectionId'] : ['admissionDate', 'academicYearId', 'classId', 'sectionId'],
+      1: isEdit
+        ? ['academicYearId', 'classId', 'sectionId']
+        : ['admissionDate', 'academicYearId', 'classId', 'sectionId', 'rollNumber'],
     }
 
     try {
@@ -1000,6 +1121,12 @@ function StudentFormDrawer({ open, student, onClose, onSuccess }: {
         dateOfBirth: v.dateOfBirth || '',
         gender: v.gender,
         bloodGroup: v.bloodGroup || undefined,
+        fatherName: v.fatherName?.trim() || undefined,
+        motherName: v.motherName?.trim() || undefined,
+        guardianName: v.guardianName?.trim() || undefined,
+        guardianRelation: v.guardianRelation?.trim() || undefined,
+        guardianPhone: v.guardianPhone?.trim() || undefined,
+        guardianEmail: v.guardianEmail?.trim() || undefined,
         parentEmail: v.parentEmail?.trim() || undefined,
         parentPhone: v.parentPhone?.trim(),
         addressPermanent: v.addressPermanent?.trim() || undefined,
@@ -1016,12 +1143,18 @@ function StudentFormDrawer({ open, student, onClose, onSuccess }: {
         const created = await createStudent({
           ...base,
           admissionDate: v.admissionDate || '',
+          academicYearId: v.academicYearId,
+          classId: v.classId,
+          sectionId: v.sectionId,
+          rollNumber: v.rollNumber ? String(v.rollNumber).trim() : undefined,
         } as CreateStudentPayload)
+
+        const newStudentId = created.data.id
 
         // Documents were already uploaded to storage during Step 1;
         // now that the student exists, attach each one.
         for (const doc of pendingDocs) {
-          await attachStudentDocument(created.data.id, doc)
+          await attachStudentDocument(newStudentId, doc)
         }
         toast.success('Student admitted successfully')
         onSuccess?.()
@@ -1067,7 +1200,10 @@ function StudentFormDrawer({ open, student, onClose, onSuccess }: {
               if (step === 0) {
                 await form.validateFields([
                   'firstName', 'middleName', 'lastName', 'dateOfBirth',
-                  'gender', 'bloodGroup', 'parentPhone', 'parentEmail',
+                  'gender', 'bloodGroup',
+                  'fatherName', 'motherName', 'guardianName',
+                  'guardianRelation', 'guardianPhone', 'guardianEmail',
+                  'parentPhone', 'parentEmail',
                   'addressPermanent', 'addressTemporary',
                 ])
               } else if (step === 1) {
@@ -1089,7 +1225,7 @@ function StudentFormDrawer({ open, student, onClose, onSuccess }: {
         freeNavigation={isEdit}
       />
 
-      <Form form={form} layout="vertical" requiredMark={false} preserve>
+      <Form form={form} layout="vertical" requiredMark={true} preserve>
 
         {/* ── Step 0 ── */}
         {step === 0 && (
@@ -1126,6 +1262,9 @@ function StudentFormDrawer({ open, student, onClose, onSuccess }: {
               </Col>
               <Col span={8}>
                 <SectionSelect form={form} />
+              </Col>
+              <Col span={8}>
+                <RollNumberInput form={form} />
               </Col>
             </Row>
             <div style={{ borderTop: `1px solid ${colors.border}`, paddingTop: 20, marginTop: 8 }}>
@@ -1274,6 +1413,30 @@ function ReviewStep({
             value: reviewValue(values?.bloodGroup),
           },
           {
+            label: 'Father Name',
+            value: reviewValue(values?.fatherName),
+          },
+          {
+            label: 'Mother Name',
+            value: reviewValue(values?.motherName),
+          },
+          {
+            label: 'Guardian Name',
+            value: reviewValue(values?.guardianName),
+          },
+          {
+            label: 'Guardian Relation',
+            value: reviewValue(values?.guardianRelation),
+          },
+          {
+            label: 'Guardian Phone',
+            value: reviewValue(values?.guardianPhone),
+          },
+          {
+            label: 'Guardian Email',
+            value: reviewValue(values?.guardianEmail),
+          },
+          {
             label: 'Parent Phone',
             value: reviewValue(values?.parentPhone),
           },
@@ -1323,6 +1486,10 @@ function ReviewStep({
           {
             label: 'Section',
             value: sectionsLoading ? <Spin size="small" /> : sectionLabel,
+          },
+          {
+            label: 'Roll Number',
+            value: reviewValue(values?.rollNumber),
           },
         ]}
         title="Academic Details"
@@ -1393,7 +1560,11 @@ function AcademicYearSelect() {
   }))
 
   return (
-    <Form.Item name="academicYearId" label="Academic Year">
+    <Form.Item
+      name="academicYearId"
+      label="Academic Year"
+      rules={[{ required: true, message: 'Please select academic year' }]}
+    >
       <Select
         placeholder="Select academic year"
         loading={isLoading}
@@ -1440,7 +1611,11 @@ function ClassSelect({ form }: { form: ReturnType<typeof Form.useForm>[0] }) {
   }))
 
   return (
-    <Form.Item name="classId" label="Class">
+    <Form.Item
+      name="classId"
+      label="Class"
+      rules={[{ required: true, message: 'Please select class' }]}
+    >
       <Select
         placeholder={
           academicYearId
@@ -1497,7 +1672,11 @@ function SectionSelect({
   }))
 
   return (
-    <Form.Item name="sectionId" label="Section">
+    <Form.Item
+      name="sectionId"
+      label="Section"
+      rules={[{ required: true, message: 'Please select section' }]}
+    >
       <Select
         placeholder={
           classId
@@ -1515,6 +1694,57 @@ function SectionSelect({
             .includes(input.toLowerCase())
         }
       />
+    </Form.Item>
+  )
+}
+
+function RollNumberInput({ form }: { form: ReturnType<typeof Form.useForm>[0] }) {
+  const academicYearId = Form.useWatch('academicYearId', form) as string | undefined
+  const sectionId = Form.useWatch('sectionId', form) as string | undefined
+  const currentRoll = Form.useWatch('rollNumber', form) as string | number | undefined
+
+  const { data: checkData, isLoading } = useCheckRollNumber(
+    { academicYearId, sectionId },
+    Boolean(academicYearId && sectionId)
+  )
+
+  const checkInfo = checkData?.data
+  const nextRoll = checkInfo?.nextAvailableRollNumber
+  const usedRolls = checkInfo?.usedRollNumbers ?? []
+
+  useEffect(() => {
+    if (nextRoll && (currentRoll === undefined || currentRoll === '' || currentRoll === null)) {
+      form.setFieldValue('rollNumber', nextRoll)
+    }
+  }, [nextRoll, currentRoll, form])
+
+  return (
+    <Form.Item
+      name="rollNumber"
+      label="Roll Number (Optional)"
+      extra={
+        isLoading
+          ? 'Checking availability…'
+          : nextRoll
+            ? `Suggested next available: ${nextRoll}`
+            : undefined
+      }
+      rules={[
+        {
+          validator: async (_, value: string | number) => {
+            if (!value) return Promise.resolve()
+            const valStr = String(value).trim()
+            if (usedRolls.map(String).includes(valStr)) {
+              return Promise.reject(
+                new Error(`Roll number ${valStr} is already assigned in this section`)
+              )
+            }
+            return Promise.resolve()
+          },
+        },
+      ]}
+    >
+      <Input placeholder={nextRoll ? `e.g. ${nextRoll}` : 'e.g. 101'} allowClear />
     </Form.Item>
   )
 }

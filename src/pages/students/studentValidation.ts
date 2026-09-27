@@ -1,7 +1,7 @@
 import type { Rule } from 'antd/es/form'
 import { bsIsoToAdIso } from '../../utils/nepaliDate'
 
-export const nameValidationRules = (fieldName: string, required = true): Rule[] => [
+export const nameValidationRules = (fieldName: string, required = true, maxLength = 50): Rule[] => [
   ...(required
     ? [
       { required: true, message: `Please enter ${fieldName.toLowerCase()}` },
@@ -19,7 +19,7 @@ export const nameValidationRules = (fieldName: string, required = true): Rule[] 
         },
       },
     ]),
-  { max: 50, message: `${fieldName} cannot exceed 50 characters` },
+  { max: maxLength, message: `${fieldName} cannot exceed ${maxLength} characters` },
   {
     // eslint-disable-next-line no-misleading-character-class
     pattern: /^[a-zA-Z\s'\-\u0900-\u097F]*$/,
@@ -82,9 +82,30 @@ export const phoneValidationRules: Rule[] = [
   },
 ]
 
+export const optionalPhoneValidationRules = (fieldName = 'Phone number'): Rule[] => [
+  { max: 30, message: `${fieldName} cannot exceed 30 characters` },
+  {
+    validator: async (_, value: string) => {
+      if (!value || !value.trim()) return Promise.resolve()
+      const cleaned = value.trim().replace(/^(\+977)?[- ]?/, '')
+      if (!/^(9[678]\d{8}|0\d{1,2}\d{6,7}|\d{10})$/.test(cleaned)) {
+        return Promise.reject(
+          new Error(`Please enter a valid 10-digit mobile number (e.g. 98XXXXXXXX)`)
+        )
+      }
+      return Promise.resolve()
+    },
+  },
+]
+
 export const emailValidationRules: Rule[] = [
   { type: 'email', message: 'Please enter a valid email address' },
   { max: 100, message: 'Email address cannot exceed 100 characters' },
+]
+
+export const optionalEmailValidationRules = (maxLen = 150): Rule[] => [
+  { type: 'email', message: 'Please enter a valid email address' },
+  { max: maxLen, message: `Email address cannot exceed ${maxLen} characters` },
 ]
 
 export const addressValidationRules = (type: 'Permanent' | 'Temporary'): Rule[] => [

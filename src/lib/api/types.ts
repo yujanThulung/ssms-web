@@ -5,10 +5,22 @@ export interface ApiMeta {
     totalPages: number
 }
 
+export interface ApiListData<T, S = unknown> {
+    items: T[]
+    stats?: S
+}
+
 export interface ApiPaginatedResponse<T> {
     success: boolean
     message: string
     data: T[]
+    meta: ApiMeta
+}
+
+export interface ApiPaginatedItemsResponse<T, S = unknown> {
+    success: boolean
+    message: string
+    data: ApiListData<T, S>
     meta: ApiMeta
 }
 
@@ -18,18 +30,18 @@ export interface ApiResponse<T> {
     data: T
 }
 
-export interface ListParams{
+export interface ListParams {
     page?: number
     pageSize?: number
     search?: string
     [key: string]: unknown
 }
 
-export interface ApiError{
+export interface ApiError {
     message: string
 }
 
-export interface TokenPair{
+export interface TokenPair {
     access_token: string
     refresh_token: string
 }
@@ -48,14 +60,14 @@ export interface BaseEntity {
  * Add new values here as you expand to teacher photos, invoice PDFs, etc.
  */
 export type UploadPurpose =
-  | 'STUDENT_PHOTO'
-  | 'TEACHER_PHOTO'
-  | 'INVOICE_PDF'
-  | 'DOCUMENT'
-  | 'STUDENT_DOCUMENT'
-  | 'LOGO'
+    | 'STUDENT_PHOTO'
+    | 'TEACHER_PHOTO'
+    | 'INVOICE_PDF'
+    | 'DOCUMENT'
+    | 'STUDENT_DOCUMENT'
+    | 'LOGO'
 
 export interface UploadResponse {
-  url: string
-  publicId: string
+    url: string
+    publicId: string
 }
