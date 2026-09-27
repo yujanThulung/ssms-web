@@ -91,8 +91,8 @@ function columnSortOrder(
 
 export default function FeeCategoryPage() {
     const { can } = usePermission()
-    const canCreate = can(FEATURES.ACCOUNT, ACTIONS.CREATE)
-    const canUpdate = can(FEATURES.ACCOUNT, ACTIONS.UPDATE)
+    const canCreate = can(FEATURES.FEE_CATEGORY, ACTIONS.CREATE)
+    const canUpdate = can(FEATURES.FEE_CATEGORY, ACTIONS.UPDATE)
 
     const [search, setSearch] = useState('')
     const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({})

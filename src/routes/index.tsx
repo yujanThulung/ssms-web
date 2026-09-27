@@ -28,7 +28,7 @@ const protectedRoutes = [
   { path: 'students/:id', element: <StudentsPage />, feature: FEATURES.STUDENT },
   { path: 'users', element: <UsersPage />, feature: FEATURES.USER },
   { path: 'accounts', element: <AccountsPage />, feature: FEATURES.ACCOUNT },
-  { path: 'fee-categories', element: <FeeCategoryPage />, feature: FEATURES.ACCOUNT },
+  { path: 'fee-categories', element: <FeeCategoryPage />, feature: FEATURES.FEE_CATEGORY },
   { path: 'academic-session', element: <AcademicSessionPage />, feature: FEATURES.ACADEMIC_YEAR },
   { path: 'classes', element: <ClassSectionPage />, feature: FEATURES.CLASS_SECTION },
   { path: 'permissions', element: <PermissionsPage />, feature: FEATURES.ROLE },
