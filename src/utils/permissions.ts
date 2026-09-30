@@ -15,6 +15,7 @@ export const FEATURES = {
   ROLE: 'role',
   ACCOUNT: 'account',
   FEE_CATEGORY: 'fee_category',
+  FEE_STRUCTURE: 'fee_structure',
   ACADEMIC_YEAR: 'academic_year',
   CLASS_SECTION: 'class_section',
   SETTINGS: 'settings',

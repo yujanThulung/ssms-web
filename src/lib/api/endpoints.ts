@@ -34,6 +34,18 @@ export const ENDPOINTS = {
     ACTIVATE: (id: string | number) => `/fee-categories/${id}/activate`,
     DEACTIVATE: (id: string | number) => `/fee-categories/${id}/deactivate`,
   },
+  FEE_STRUCTURES: {
+    BASE: '/fee-structures',
+    BULK_SETUP: '/fee-structures/bulk-setup',
+    FIND_OR_CREATE: '/fee-structures/find-or-create',
+    DETAIL: (id: string | number) => `/fee-structures/${id}`,
+    /** Requires UPDATE — submit a draft or a rejected structure. */
+    STATUS: (id: string | number) => `/fee-structures/${id}/status`,
+    /** Requires APPROVE — approve, reject, or archive. */
+    REVIEW: (id: string | number) => `/fee-structures/${id}/review`,
+    LINES: (id: string | number) => `/fee-structures/${id}/lines`,
+    LINE_DETAIL: (id: string | number, lineId: string | number) => `/fee-structures/${id}/lines/${lineId}`,
+  },
   PERMISSIONS: {
     LIST: '/permissions',
     DETAIL: (id: string | number) => `/permissions/${id}`,

@@ -51,6 +51,7 @@ export const masterSetup: SidebarItem[] = [
   { title: 'Academic Session', url: '/academic-session', icon: CalendarRange, feature: FEATURES.ACADEMIC_YEAR },
   { title: 'Classes & Sections', url: '/classes', icon: BookOpen, feature: FEATURES.CLASS_SECTION },
   { title: 'Fee Categories', url: '/fee-categories', icon: Tags, feature: FEATURES.FEE_CATEGORY },
+  { title: 'Fee Structure', url: '/fee-structures', icon: List, feature: FEATURES.FEE_STRUCTURE },
   { title: 'Permissions', url: '/permissions', icon: ShieldCheck, feature: 'role' },
 ]
 

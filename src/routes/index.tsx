@@ -19,6 +19,7 @@ const AcademicSessionPage = lazy(() => import('../pages/academic-session/Academi
 const ClassSectionPage = lazy(() => import('../pages/class-section/ClassAndSection'))
 const StudentPromotePage = lazy(() => import('../pages/students/StudentPromote'))
 const FeeCategoryPage = lazy(() => import('../pages/fee-category/FeeCategoryPage'))
+const FeeStructurePage = lazy(() => import('../pages/fee-structure/FeeStructurePage'))
 
 // 2. All routes in one clean list
 const protectedRoutes = [
@@ -29,6 +30,7 @@ const protectedRoutes = [
   { path: 'users', element: <UsersPage />, feature: FEATURES.USER },
   { path: 'accounts', element: <AccountsPage />, feature: FEATURES.ACCOUNT },
   { path: 'fee-categories', element: <FeeCategoryPage />, feature: FEATURES.FEE_CATEGORY },
+  { path: 'fee-structures', element: <FeeStructurePage />, feature: FEATURES.FEE_STRUCTURE },
   { path: 'academic-session', element: <AcademicSessionPage />, feature: FEATURES.ACADEMIC_YEAR },
   { path: 'classes', element: <ClassSectionPage />, feature: FEATURES.CLASS_SECTION },
   { path: 'permissions', element: <PermissionsPage />, feature: FEATURES.ROLE },
