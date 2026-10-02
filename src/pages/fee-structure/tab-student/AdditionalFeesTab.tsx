@@ -469,7 +469,7 @@ export function AdditionalFeesTab() {
         items={TABS.map((tab) => ({ key: tab.key, label: tab.label }))}
       />
 
-      {isLoading ? (
+      {isFetching ? (
         <div
           style={{
             backgroundColor: colors.surface,
@@ -485,7 +485,7 @@ export function AdditionalFeesTab() {
           rowKey={(row) => row.id}
           columns={columns}
           dataSource={items}
-          loading={isFetching}
+          loading={false}
           onChange={handleTableChange}
           onRowClick={(row) => canUpdate && row.status !== 'ARCHIVED' && setEditing(row)}
           pagination={{
