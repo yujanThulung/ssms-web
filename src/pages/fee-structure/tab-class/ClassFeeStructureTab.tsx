@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { parseAsInteger, parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { Badge, Button, Col, Empty, Row, Space, Tabs, Tooltip, Typography } from 'antd'
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
 import type { SorterResult } from 'antd/es/table/interface'
@@ -108,13 +109,13 @@ export function ClassFeeStructureTab() {
   const canCreate = can(FEATURES.FEE_STRUCTURE, ACTIONS.CREATE)
   const canUpdate = can(FEATURES.FEE_STRUCTURE, ACTIONS.UPDATE)
 
-  const [statusTab, setStatusTab] = useState<StatusTabKey>(ALL)
-  const [search, setSearch] = useState('')
-  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({})
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState<number>(TABLE.pageSize)
-  const [sortBy, setSortBy] = useState('className')
-  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('ASC')
+  const [statusTab, setStatusTab] = useQueryState('status', parseAsString.withDefault(ALL))
+  const [search, setSearch] = useQueryState('search', parseAsString.withDefault(''))
+  const [academicYearId, setAcademicYearId] = useQueryState('academicYearId')
+  const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1))
+  const [limit, setLimit] = useQueryState('limit', parseAsInteger.withDefault(TABLE.pageSize))
+  const [sortBy, setSortBy] = useQueryState('sortBy', parseAsString.withDefault('className'))
+  const [sortOrder, setSortOrder] = useQueryState('sortOrder', parseAsStringLiteral(['ASC', 'DESC'] as const).withDefault('ASC'))
 
   const [target, setTarget] = useState<StructureTarget | null>(null)
   const [statusTarget, setStatusTarget] = useState<StatusChangeTarget | null>(null)
@@ -122,24 +123,24 @@ export function ClassFeeStructureTab() {
   const [newOpen, setNewOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
 
-  const academicYearId = filterValues['academicYearId']
+
   const listParams = useMemo(
     () => ({
       page,
       limit,
       search: search || undefined,
-      status: toStatusParam(statusTab),
-      academicYearId,
+      status: toStatusParam(statusTab as StatusTabKey),
+      academicYearId: academicYearId || undefined,
       sortBy,
       sortOrder,
     }),
     [page, limit, search, statusTab, academicYearId, sortBy, sortOrder],
   )
 
-  const activeStatus = toStatusParam(statusTab)
+  const activeStatus = toStatusParam(statusTab as StatusTabKey)
   const { data, isLoading, isFetching } = useFeeStructures(listParams)
   const { rows } = useFeeStructureRows(data)
-  const counts = useFeeStructureCounts(academicYearId, search || undefined, activeStatus, data?.meta?.total)
+  const counts = useFeeStructureCounts(academicYearId || undefined, search || undefined, activeStatus, data?.meta?.total)
 
   const { data: yearData } = useAcademicYears({ limit: 100 })
   const years = useMemo<AcademicYear[]>(
@@ -496,9 +497,9 @@ export function ClassFeeStructureTab() {
           setPage(1)
         }}
         debounceMs={300}
-        filterValues={filterValues}
+        filterValues={{ academicYearId: academicYearId || undefined }}
         onFilterChange={(key, value) => {
-          setFilterValues((prev) => ({ ...prev, [key]: value }))
+          if (key === 'academicYearId') setAcademicYearId(value || null)
           setPage(1)
         }}
       />

@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Spin } from 'antd'
+import { NuqsAdapter } from 'nuqs/adapters/react-router'
 
 import DashboardLayout from '../layouts/DashboardLayout'
 import LoginPage from '../pages/login/LoginPage'
@@ -47,39 +48,41 @@ export default function AppRouter() {
 
   return (
     <BrowserRouter>
-      <Suspense
-        fallback={
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-            <Spin size="large" />
-          </div>
-        }
-      >
-        <Routes>
-          <Route
-            path="/login"
-            element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
-          />
+      <NuqsAdapter>
+        <Suspense
+          fallback={
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+              <Spin size="large" />
+            </div>
+          }
+        >
+          <Routes>
+            <Route
+              path="/login"
+              element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+            />
 
-          <Route
-            path="/"
-            element={
-              <PrivateRoute>
-                <DashboardLayout />
-              </PrivateRoute>
-            }
-          >
-            {protectedRoutes.map(({ path, element, feature }) => (
-              <Route
-                key={path}
-                path={path}
-                element={<PermissionGuard feature={feature}>{element}</PermissionGuard>}
-              />
-            ))}
-          </Route>
+            <Route
+              path="/"
+              element={
+                <PrivateRoute>
+                  <DashboardLayout />
+                </PrivateRoute>
+              }
+            >
+              {protectedRoutes.map(({ path, element, feature }) => (
+                <Route
+                  key={path}
+                  path={path}
+                  element={<PermissionGuard feature={feature}>{element}</PermissionGuard>}
+                />
+              ))}
+            </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </NuqsAdapter>
     </BrowserRouter>
   )
 }

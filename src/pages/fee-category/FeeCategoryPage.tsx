@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { parseAsInteger, parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import {
     Button,
     Col,
@@ -94,12 +95,13 @@ export default function FeeCategoryPage() {
     const canCreate = can(FEATURES.FEE_CATEGORY, ACTIONS.CREATE)
     const canUpdate = can(FEATURES.FEE_CATEGORY, ACTIONS.UPDATE)
 
-    const [search, setSearch] = useState('')
-    const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({})
-    const [page, setPage] = useState(1)
-    const [limit, setLimit] = useState(10)
-    const [sortBy, setSortBy] = useState<FeeCategorySortBy>('createdAt')
-    const [sortOrder, setSortOrder] = useState<FeeCategorySortOrder>('DESC')
+    const [search, setSearch] = useQueryState('search', parseAsString.withDefault(''))
+    const [frequency, setFrequency] = useQueryState('frequency')
+    const [statusFilter, setStatusFilter] = useQueryState('status')
+    const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1))
+    const [limit, setLimit] = useQueryState('limit', parseAsInteger.withDefault(10))
+    const [sortBy, setSortBy] = useQueryState('sortBy', parseAsString.withDefault('createdAt'))
+    const [sortOrder, setSortOrder] = useQueryState('sortOrder', parseAsStringLiteral(['ASC', 'DESC'] as const).withDefault('DESC'))
 
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [editingCategory, setEditingCategory] = useState<FeeCategory | null>(null)
@@ -111,12 +113,12 @@ export default function FeeCategoryPage() {
             page,
             limit,
             search: search || undefined,
-            frequency: filterValues['frequency'],
-            status: filterValues['status'],
-            sortBy,
+            frequency: frequency || undefined,
+            status: statusFilter || undefined,
+            sortBy: sortBy as FeeCategorySortBy,
             sortOrder,
         }),
-        [page, limit, search, filterValues, sortBy, sortOrder]
+        [page, limit, search, frequency, statusFilter, sortBy, sortOrder]
     )
 
     const { data, isLoading, isFetching } = useFeeCategories(listParams)
@@ -284,7 +286,7 @@ export default function FeeCategoryPage() {
             key: 'name',
             width: 230,
             sorter: true,
-            sortOrder: columnSortOrder(sortBy, sortOrder, 'name'),
+            sortOrder: columnSortOrder(sortBy as FeeCategorySortBy, sortOrder, 'name'),
             render: (text: string, record: FeeCategory) => (
                 <div>
                     <span style={{ fontWeight: 500 }}>{text}</span>
@@ -300,7 +302,7 @@ export default function FeeCategoryPage() {
             key: 'code',
             width: 160,
             sorter: true,
-            sortOrder: columnSortOrder(sortBy, sortOrder, 'code'),
+            sortOrder: columnSortOrder(sortBy as FeeCategorySortBy, sortOrder, 'code'),
             render: (code?: string) =>
                 code
                     ? <span style={{ fontFamily: 'monospace' }}>{code.toUpperCase()}</span>
@@ -346,7 +348,7 @@ export default function FeeCategoryPage() {
             key: 'createdAt',
             width: 120,
             sorter: true,
-            sortOrder: columnSortOrder(sortBy, sortOrder, 'createdAt'),
+            sortOrder: columnSortOrder(sortBy as FeeCategorySortBy, sortOrder, 'createdAt'),
             render: (v: string) => (
                 <span style={{ fontFamily: 'monospace', fontSize: 12 }}>
                     {v ? new Date(v).toLocaleDateString() : '—'}
@@ -422,8 +424,12 @@ export default function FeeCategoryPage() {
                 searchValue={search}
                 onSearchChange={(val) => { setSearch(val); setPage(1) }}
                 debounceMs={300}
-                filterValues={filterValues}
-                onFilterChange={(key, val) => { setFilterValues((prev) => ({ ...prev, [key]: val })); setPage(1) }}
+                filterValues={{ frequency: frequency || undefined, status: statusFilter || undefined }}
+                onFilterChange={(key, val) => {
+                    if (key === 'frequency') setFrequency(val || null)
+                    if (key === 'status') setStatusFilter(val || null)
+                    setPage(1)
+                }}
             />
 
             {/* Table */}

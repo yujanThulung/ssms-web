@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { parseAsInteger, parseAsString, useQueryState } from 'nuqs'
 import { Button, Col, Empty, Row, Space, Tabs, Tag, Tooltip, Typography } from 'antd'
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
 import {
@@ -94,10 +95,7 @@ function AdditionalFeeStatusPill({ status, onClick }: { status?: string; onClick
   )
 }
 
-const REASON_OPTIONS = Object.entries(ADDITIONAL_FEE_REASON_LABEL).map(([value, label]) => ({
-  value,
-  label,
-}))
+
 
 export function AdditionalFeesTab() {
   const { can } = usePermission()
@@ -105,27 +103,28 @@ export function AdditionalFeesTab() {
   const canUpdate = can(FEATURES.FEE_STRUCTURE, ACTIONS.UPDATE)
   const canDelete = can(FEATURES.FEE_STRUCTURE, ACTIONS.DELETE)
 
-  const [statusTab, setStatusTab] = useState<StatusTabKey>('ALL')
-  const [search, setSearch] = useState('')
-  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({})
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(10)
+  const [statusTab, setStatusTab] = useQueryState('status', parseAsString.withDefault('ALL'))
+  const [search, setSearch] = useQueryState('search', parseAsString.withDefault(''))
+  const [academicYearId, setAcademicYearId] = useQueryState('academicYearId')
+  const [reason, setReason] = useQueryState('reason')
+  const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1))
+  const [limit, setLimit] = useQueryState('limit', parseAsInteger.withDefault(10))
   const [editing, setEditing] = useState<AdditionalFeeRow | null>(null)
   const [creating, setCreating] = useState(false)
   const [statusChanging, setStatusChanging] = useState<AdditionalFeeRow | null>(null)
 
-  const academicYearId = filterValues['academicYearId']
+
 
   const params = useMemo(
     () => ({
       page,
       limit,
       search: search || undefined,
-      academicYearId,
+      academicYearId: academicYearId || undefined,
       status: statusTab === 'ALL' ? undefined : statusTab,
-      reason: filterValues['reason'],
+      reason: reason || undefined,
     }),
-    [page, limit, search, academicYearId, statusTab, filterValues],
+    [page, limit, search, academicYearId, statusTab, reason],
   )
 
   const { items, meta, isLoading, isFetching } = useAdditionalFeeList(params)
@@ -142,7 +141,7 @@ export function AdditionalFeesTab() {
   const approvedStructuresQuery = useFeeStructures({
     limit: 1,
     status: FeeStructureStatus.APPROVED,
-    academicYearId,
+    academicYearId: academicYearId || undefined,
   })
   const canApply = (approvedStructuresQuery.data?.meta?.total ?? 0) > 0
 
@@ -452,9 +451,10 @@ export function AdditionalFeesTab() {
           setPage(1)
         }}
         debounceMs={300}
-        filterValues={filterValues}
+        filterValues={{ academicYearId: academicYearId || undefined, reason: reason || undefined }}
         onFilterChange={(key, value) => {
-          setFilterValues((prev) => ({ ...prev, [key]: value }))
+          if (key === 'academicYearId') setAcademicYearId(value || null)
+          if (key === 'reason') setReason(value || null)
           setPage(1)
         }}
       />
