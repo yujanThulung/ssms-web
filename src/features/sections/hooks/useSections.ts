@@ -12,7 +12,7 @@ interface UseSectionsParams {
 }
 
 export function useSections({ classId, requireClassId = true, enabled = true }: UseSectionsParams = {}) {
-  const params = new URLSearchParams({ limit: '100', sortBy: 'name', sortOrder: 'ASC', status: 'ACTIVE' })
+  const params = new URLSearchParams({ sortBy: 'name', sortOrder: 'ASC', status: 'ACTIVE' })
   if (classId) params.set('classId', classId)
 
   const url = `${ENDPOINTS.SECTIONS.BASE}?${params.toString()}`

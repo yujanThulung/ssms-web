@@ -16,7 +16,7 @@ export function useClasses({
   requireAcademicYear = true,
   enabled = true,
 }: UseClassesParams = {}) {
-  const params = new URLSearchParams({ limit: '100', sortBy: 'name', sortOrder: 'ASC', status: 'ACTIVE' })
+  const params = new URLSearchParams({ sortBy: 'name', sortOrder: 'ASC', status: 'ACTIVE' })
   if (academicYearId) params.set('academicYearId', academicYearId)
 
   const url = `${ENDPOINTS.CLASSES.BASE}?${params.toString()}`

@@ -136,9 +136,10 @@ export function ClassFeeStructureTab() {
     [page, limit, search, statusTab, academicYearId, sortBy, sortOrder],
   )
 
+  const activeStatus = toStatusParam(statusTab)
   const { data, isLoading, isFetching } = useFeeStructures(listParams)
   const { rows } = useFeeStructureRows(data)
-  const counts = useFeeStructureCounts(academicYearId, search || undefined)
+  const counts = useFeeStructureCounts(academicYearId, search || undefined, activeStatus, data?.meta?.total)
 
   const { data: yearData } = useAcademicYears({ limit: 100 })
   const years = useMemo<AcademicYear[]>(

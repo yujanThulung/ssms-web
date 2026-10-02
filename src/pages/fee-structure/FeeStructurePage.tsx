@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Tabs, Typography } from 'antd'
 import { colors } from '../../lib/designTokens'
 import { ClassFeeStructureTab } from './tab-class/ClassFeeStructureTab'
@@ -6,6 +7,8 @@ import { AdditionalFeesTab } from './tab-student/AdditionalFeesTab'
 const { Title, Text } = Typography
 
 export default function FeeStructurePage() {
+  const [activeTab, setActiveTab] = useState('class')
+
   return (
     <div style={{ padding: 24 }}>
       <div style={{ marginBottom: 20 }}>
@@ -16,21 +19,24 @@ export default function FeeStructurePage() {
       </div>
 
       <Tabs
-        defaultActiveKey="class"
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        destroyOnHidden
         size="large"
         items={[
           {
             key: 'class',
             label: 'Class Fee Structure',
-            children: <ClassFeeStructureTab />,
+            children: activeTab === 'class' ? <ClassFeeStructureTab /> : null,
           },
           {
             key: 'student',
             label: 'Student Additional Fees',
-            children: <AdditionalFeesTab />,
+            children: activeTab === 'student' ? <AdditionalFeesTab /> : null,
           },
         ]}
       />
     </div>
   )
 }
+

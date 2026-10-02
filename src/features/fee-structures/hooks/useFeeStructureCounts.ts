@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useQueries } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { feeStructureKeys } from '../keys'
 import { FEE_STRUCTURE_ALL_STATUSES } from '../constants'
 import type { FeeStructureStatus as FeeStructureStatusType } from '../types'
@@ -23,38 +23,50 @@ export interface FeeStructureCounts {
 }
 
 /**
- * Cheap `limit: 1` probes — one per status plus one unfiltered — so the status
- * sub-tabs and KPI cards can show real counts without the user having to visit
- * each tab first.
+ * Single `limit: 1` probe for overall total count.
+ * Status counts are populated on-demand as tabs are visited or cached.
  */
 export function useFeeStructureCounts(
   academicYearId?: string,
   search?: string,
+  currentStatus?: FeeStructureStatusType,
+  currentTotal?: number,
 ): FeeStructureCounts {
-  const results = useQueries({
-    queries: [
-      {
-        queryKey: feeStructureKeys.list({ limit: 1, academicYearId, search }),
-        queryFn: () => fetchFeeStructures({ limit: 1, academicYearId, search }),
-        staleTime: 60_000,
-      },
-      ...FEE_STRUCTURE_ALL_STATUSES.map((status) => ({
-        queryKey: feeStructureKeys.list({ limit: 1, status, academicYearId, search }),
-        queryFn: () => fetchFeeStructures({ limit: 1, status, academicYearId, search }),
-        staleTime: 60_000,
-      })),
-    ],
+  const queryClient = useQueryClient()
+
+  const overallQuery = useQuery({
+    queryKey: feeStructureKeys.list({ limit: 1, academicYearId, search }),
+    queryFn: () => fetchFeeStructures({ limit: 1, academicYearId, search }),
+    staleTime: 60_000,
   })
 
   return useMemo(() => {
-    const [overall, ...byStatus] = results
+    const total = overallQuery.data?.meta?.total ?? (currentStatus === undefined ? currentTotal : 0) ?? 0
 
     const counts: Record<FeeStructureStatusType, number> = { ...ZERO_COUNTS }
-    FEE_STRUCTURE_ALL_STATUSES.forEach((status, index) => {
-      counts[status] = byStatus[index]?.data?.meta?.total ?? 0
+
+    FEE_STRUCTURE_ALL_STATUSES.forEach((status) => {
+      if (currentStatus === status && currentTotal !== undefined) {
+        counts[status] = currentTotal
+      } else {
+        const queriesData = queryClient.getQueriesData<{ meta?: { total?: number } }>({
+          queryKey: feeStructureKeys.lists(),
+        })
+        for (const [key, qData] of queriesData) {
+          const params = key[2] as Record<string, unknown> | undefined
+          if (
+            params?.status === status &&
+            params?.academicYearId === academicYearId &&
+            params?.search === search &&
+            qData?.meta?.total !== undefined
+          ) {
+            counts[status] = qData.meta.total
+            break
+          }
+        }
+      }
     })
 
-    const total = overall.data?.meta?.total ?? 0
     const structured = FEE_STRUCTURE_ALL_STATUSES.reduce(
       (sum, status) => sum + counts[status],
       0,
@@ -64,7 +76,8 @@ export function useFeeStructureCounts(
       total,
       notSetUp: Math.max(total - structured, 0),
       byStatus: counts,
-      isLoading: results.some((result) => result.isLoading),
+      isLoading: overallQuery.isLoading,
     }
-  }, [results])
+  }, [overallQuery.data, overallQuery.isLoading, academicYearId, search, currentStatus, currentTotal, queryClient])
 }
+
