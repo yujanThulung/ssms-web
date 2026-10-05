@@ -20,6 +20,7 @@ export const FEATURES = {
   CLASS_SECTION: 'class_section',
   SETTINGS: 'settings',
   DASHBOARD: 'dashboard',
+  DISCOUNT_SCHOLARSHIP: 'discount_scholarship',
 } as const
 
 export const ACTIONS = {

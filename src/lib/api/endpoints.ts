@@ -78,4 +78,14 @@ export const ENDPOINTS = {
     REVIEW: (id: string | number) => `/additional-fees/${id}/review`,
     ARCHIVE: (id: string | number) => `/additional-fees/${id}/archive`,
   },
+  DISCOUNTS: {
+    BASE: '/discounts',
+    DETAIL: (id: string) => `/discounts/${id}`,
+    STATUS: (id: string) => `/discounts/${id}/status`,
+  },
+  SCHOLARSHIPS: {
+    BASE: '/scholarships',
+    DETAIL: (id: string) => `/scholarships/${id}`,
+    STATUS: (id: string) => `/scholarships/${id}/status`,
+  },
 } as const
