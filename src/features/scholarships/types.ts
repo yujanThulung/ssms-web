@@ -14,6 +14,16 @@ export const ScholarshipStatus = {
 } as const
 export type ScholarshipStatus = (typeof ScholarshipStatus)[keyof typeof ScholarshipStatus]
 
+export const ScholarshipCategory = {
+  MERIT: 'MERIT',
+  NEED_BASED: 'NEED_BASED',
+  ATTENDANCE: 'ATTENDANCE',
+  PERFORMANCE: 'PERFORMANCE',
+  SPORTS: 'SPORTS',
+  CUSTOM: 'CUSTOM',
+} as const
+export type ScholarshipCategory = (typeof ScholarshipCategory)[keyof typeof ScholarshipCategory]
+
 // ─── Entity ───────────────────────────────────────────────────────────────────
 
 export interface Scholarship extends BaseEntity {
@@ -21,6 +31,7 @@ export interface Scholarship extends BaseEntity {
   code: string
   name: string
   description: string | null
+  category: ScholarshipCategory
   type: ScholarshipType
   /** Decimal string from backend e.g. "25.00" */
   value: string
@@ -34,6 +45,16 @@ export interface Scholarship extends BaseEntity {
   expiryDate: string | null
   /** BS date YYYY-MM-DD | null */
   expiryDateBS: string | null
+  academicYear: {
+    id: string
+    name: string
+    startDate?: string
+  }
+  feeCategories: {
+    id: string
+    name: string
+    code?: string
+  }[]
 }
 
 // ─── Payloads ─────────────────────────────────────────────────────────────────
@@ -41,6 +62,7 @@ export interface Scholarship extends BaseEntity {
 export interface CreateScholarshipPayload {
   name: string
   description?: string
+  category: ScholarshipCategory
   type: ScholarshipType
   value: number
   canCombine?: boolean
@@ -48,16 +70,21 @@ export interface CreateScholarshipPayload {
   effectiveDate: string
   /** BS date YYYY-MM-DD (optional) */
   expiryDate?: string | null
+  academicYearId: string
+  feeCategoryIds: string[]
 }
 
 export interface UpdateScholarshipPayload {
   name?: string
   description?: string
+  category?: ScholarshipCategory
   type?: ScholarshipType
   value?: number
   canCombine?: boolean
   effectiveDate?: string
   expiryDate?: string | null
+  academicYearId?: string
+  feeCategoryIds?: string[]
 }
 
 export interface ChangeScholarshipStatusPayload {
@@ -69,12 +96,15 @@ export interface ChangeScholarshipStatusPayload {
 export interface ScholarshipFormValues {
   name: string
   description?: string
+  category: ScholarshipCategory
   type: ScholarshipType
   value: number
   canCombine: boolean
   /** effectiveDate in BS */
   effectiveDateBS: string
   expiryDateBS?: string | null
+  academicYearId: string
+  feeCategoryIds: string[]
 }
 
 // ─── Query params ─────────────────────────────────────────────────────────────
@@ -88,6 +118,9 @@ export interface ScholarshipListParams {
   search?: string
   status?: string
   type?: string
+  category?: string
+  academicYearId?: string
+  feeCategoryId?: string
   sortBy?: ScholarshipSortBy
   sortOrder?: ScholarshipSortOrder
 }

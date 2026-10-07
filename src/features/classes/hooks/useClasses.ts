@@ -9,15 +9,21 @@ interface UseClassesParams {
    *  Pass requireAcademicYear=false to fetch all active classes without year filter. */
   requireAcademicYear?: boolean
   enabled?: boolean
+  limit?: number
+  page?: number
 }
 
 export function useClasses({
   academicYearId,
   requireAcademicYear = true,
   enabled = true,
+  limit,
+  page,
 }: UseClassesParams = {}) {
   const params = new URLSearchParams({ sortBy: 'name', sortOrder: 'ASC', status: 'ACTIVE' })
   if (academicYearId) params.set('academicYearId', academicYearId)
+  if (limit !== undefined && limit > 0) params.set('limit', String(limit))
+  if (page !== undefined && page > 0) params.set('page', String(page))
 
   const url = `${ENDPOINTS.CLASSES.BASE}?${params.toString()}`
   const isEnabled = enabled && (requireAcademicYear ? !!academicYearId : true)

@@ -63,13 +63,17 @@ import {
     type UpdateScholarshipPayload,
     type ScholarshipSortBy,
     type ScholarshipSortOrder,
+    ScholarshipCategory,
 } from '../../features/scholarships'
 import type { ApiResponse } from '../../lib/api/types'
 import type { ScholarshipFormValues } from '../../features/scholarships/types'
+import { useAcademicYears, type AcademicYear } from '../../features/academic-years'
+import { useFeeCategories, type FeeCategory } from '../../features/fee-categories'
+import { toListArray } from '../../features/fee-structures'
 
 const { Text } = Typography
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Constants 
 
 const TYPE_OPTIONS = [
     { label: 'Percentage (%)', value: ScholarshipType.PERCENTAGE },
@@ -86,7 +90,25 @@ const TYPE_LABELS: Record<string, string> = {
     [ScholarshipType.FIXED_AMOUNT]: 'Fixed Amount',
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const CATEGORY_OPTIONS = [
+    { label: 'Merit', value: ScholarshipCategory.MERIT },
+    { label: 'Need Based', value: ScholarshipCategory.NEED_BASED },
+    { label: 'Attendance', value: ScholarshipCategory.ATTENDANCE },
+    { label: 'Performance', value: ScholarshipCategory.PERFORMANCE },
+    { label: 'Sports', value: ScholarshipCategory.SPORTS },
+    { label: 'Custom', value: ScholarshipCategory.CUSTOM },
+]
+
+const CATEGORY_LABELS: Record<string, string> = {
+    [ScholarshipCategory.MERIT]: 'Merit',
+    [ScholarshipCategory.NEED_BASED]: 'Need Based',
+    [ScholarshipCategory.ATTENDANCE]: 'Attendance',
+    [ScholarshipCategory.PERFORMANCE]: 'Performance',
+    [ScholarshipCategory.SPORTS]: 'Sports',
+    [ScholarshipCategory.CUSTOM]: 'Custom',
+}
+
+// ─── Helpers ──
 
 function formatScholarshipValue(type: ScholarshipType, value: string | number): string {
     const num = typeof value === 'string' ? parseFloat(value) : value
@@ -124,7 +146,7 @@ function toCsvRow(s: Scholarship) {
     ]
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Page ─────
 
 export default function ScholarshipPage() {
     const { can } = usePermission()
@@ -153,7 +175,7 @@ export default function ScholarshipPage() {
     const [pendingStatusId, setPendingStatusId] = useState<string | null>(null)
     const [form] = Form.useForm<ScholarshipFormValues>()
 
-    // ── Data ──────────────────────────────────────────────────────────────────
+    // ── Data ──
     const listParams = useMemo(
         () => ({
             page,
@@ -183,6 +205,24 @@ export default function ScholarshipPage() {
         }
         return undefined
     }, [data])
+
+    // ── Reference Data ────────────────────────────────────────────────────────
+    const { data: academicYearsRes } = useAcademicYears()
+    const { data: feeCategoriesRes } = useFeeCategories()
+
+    const academicYearOptions = useMemo(() => {
+        return toListArray<AcademicYear>(academicYearsRes).map((ay) => ({
+            label: ay.name,
+            value: ay.id,
+        }))
+    }, [academicYearsRes])
+
+    const feeCategoryOptions = useMemo(() => {
+        return toListArray<FeeCategory>(feeCategoriesRes).map((fc) => ({
+            label: fc.name,
+            value: fc.id,
+        }))
+    }, [feeCategoriesRes])
 
     // ── Mutations ─────────────────────────────────────────────────────────────
     const { mutateAsync: createScholarship, isPending: isCreating } = useCreateScholarship()
@@ -258,7 +298,11 @@ export default function ScholarshipPage() {
     const handleOpenAdd = () => {
         setEditingScholarship(null)
         form.resetFields()
-        form.setFieldsValue({ type: ScholarshipType.PERCENTAGE, canCombine: false })
+        form.setFieldsValue({
+            type: ScholarshipType.PERCENTAGE,
+            category: ScholarshipCategory.MERIT,
+            canCombine: false,
+        })
         setDrawerOpen(true)
     }
 
@@ -268,11 +312,14 @@ export default function ScholarshipPage() {
         form.setFieldsValue({
             name: scholarship.name,
             description: scholarship.description ?? '',
+            category: scholarship.category,
             type: scholarship.type,
             value: parseFloat(scholarship.value),
             canCombine: scholarship.canCombine,
             effectiveDateBS: scholarship.effectiveDateBS || scholarship.effectiveDate,
             expiryDateBS: scholarship.expiryDateBS || scholarship.expiryDate || undefined,
+            academicYearId: scholarship.academicYear?.id,
+            feeCategoryIds: scholarship.feeCategories?.map((fc) => fc.id) || [],
         })
         setDrawerOpen(true)
     }
@@ -283,11 +330,14 @@ export default function ScholarshipPage() {
             const payload: CreateScholarshipPayload = {
                 name: values.name.trim(),
                 description: values.description?.trim() || undefined,
+                category: values.category,
                 type: values.type,
                 value: values.value,
                 canCombine: values.canCombine ?? false,
                 effectiveDate: values.effectiveDateBS,
                 expiryDate: values.expiryDateBS || null,
+                academicYearId: values.academicYearId,
+                feeCategoryIds: values.feeCategoryIds,
             }
 
             if (editingScholarship) {
@@ -416,6 +466,42 @@ export default function ScholarshipPage() {
                             {code}
                         </Tag>
                     </Tooltip>
+                ) : (
+                    <span style={{ color: colors.muted }}>—</span>
+                ),
+        },
+        {
+            title: 'Category',
+            dataIndex: 'category',
+            key: 'category',
+            width: 140,
+            render: (cat: ScholarshipCategory) => (
+                <Tag color="cyan" style={{ borderRadius: 6 }}>
+                    {CATEGORY_LABELS[cat] || cat}
+                </Tag>
+            ),
+        },
+        {
+            title: 'Academic Year',
+            dataIndex: 'academicYear',
+            key: 'academicYear',
+            width: 150,
+            render: (ay: any) => ay?.name || '—',
+        },
+        {
+            title: 'Fee Categories',
+            dataIndex: 'feeCategories',
+            key: 'feeCategories',
+            width: 200,
+            render: (categories: any[]) =>
+                categories && categories.length > 0 ? (
+                    <Space size={4} wrap>
+                        {categories.map((c) => (
+                            <Tag key={c.id} style={{ borderRadius: 6 }}>
+                                {c.name}
+                            </Tag>
+                        ))}
+                    </Space>
                 ) : (
                     <span style={{ color: colors.muted }}>—</span>
                 ),
@@ -572,7 +658,7 @@ export default function ScholarshipPage() {
         },
     ]
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // ─────────
 
     return (
         <div>
@@ -727,6 +813,30 @@ export default function ScholarshipPage() {
                     <Row gutter={16}>
                         <Col span={12}>
                             <Form.Item
+                                name="category"
+                                label="Scholarship Category"
+                                rules={[{ required: true, message: 'Please select a category' }]}
+                            >
+                                <Select
+                                    placeholder="Select category"
+                                    options={CATEGORY_OPTIONS}
+                                />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item
+                                name="canCombine"
+                                label="Can Combine with Other Programs"
+                                valuePropName="checked"
+                            >
+                                <Switch checkedChildren="Yes" unCheckedChildren="No" />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item
                                 name="type"
                                 label="Scholarship Type"
                                 rules={[{ required: true, message: 'Please select a type' }]}
@@ -741,7 +851,6 @@ export default function ScholarshipPage() {
                                 />
                             </Form.Item>
                         </Col>
-
                         <Col span={12}>
                             {/* Re-renders when type changes so validation bounds update */}
                             <Form.Item shouldUpdate={(prev, curr) => prev.type !== curr.type} noStyle>
@@ -779,13 +888,41 @@ export default function ScholarshipPage() {
                         </Col>
                     </Row>
 
-                    <Form.Item
-                        name="canCombine"
-                        label="Can Combine with Other Programs"
-                        valuePropName="checked"
-                    >
-                        <Switch checkedChildren="Yes" unCheckedChildren="No" />
-                    </Form.Item>
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item
+                                name="academicYearId"
+                                label="Academic Year"
+                                rules={[{ required: true, message: 'Please select an academic year' }]}
+                            >
+                                <Select
+                                    placeholder="Select academic year"
+                                    options={academicYearOptions}
+                                    showSearch
+                                    filterOption={(input, option) =>
+                                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                    }
+                                />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item
+                                name="feeCategoryIds"
+                                label="Fee Categories"
+                                rules={[{ required: true, message: 'Please select at least one fee category' }]}
+                            >
+                                <Select
+                                    mode="multiple"
+                                    placeholder="Select fee categories"
+                                    options={feeCategoryOptions}
+                                    showSearch
+                                    filterOption={(input, option) =>
+                                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                    }
+                                />
+                            </Form.Item>
+                        </Col>
+                    </Row>
 
                     <Row gutter={16}>
                         <Col span={12}>
@@ -832,21 +969,21 @@ export default function ScholarshipPage() {
                 options={
                     statusScholarship?.status === ScholarshipStatus.ACTIVE
                         ? [
-                              {
-                                  value: ScholarshipStatus.INACTIVE,
-                                  label: 'Inactive',
-                                  color: 'warning',
-                                  help: 'The scholarship will no longer be available for new assignments. Existing assignments remain unaffected.',
-                              },
-                          ]
+                            {
+                                value: ScholarshipStatus.INACTIVE,
+                                label: 'Inactive',
+                                color: 'warning',
+                                help: 'The scholarship will no longer be available for new assignments. Existing assignments remain unaffected.',
+                            },
+                        ]
                         : [
-                              {
-                                  value: ScholarshipStatus.ACTIVE,
-                                  label: 'Active',
-                                  color: 'success',
-                                  help: 'The scholarship will become available for new student assignments.',
-                              },
-                          ]
+                            {
+                                value: ScholarshipStatus.ACTIVE,
+                                label: 'Active',
+                                color: 'success',
+                                help: 'The scholarship will become available for new student assignments.',
+                            },
+                        ]
                 }
                 onConfirm={async (nextStatus) => {
                     if (!statusScholarship) return
@@ -918,6 +1055,12 @@ export default function ScholarshipPage() {
                             )}
                         </Descriptions.Item>
 
+                        <Descriptions.Item label="Category">
+                            <Tag color="cyan" style={{ borderRadius: 6 }}>
+                                {CATEGORY_LABELS[viewingScholarship.category] || viewingScholarship.category}
+                            </Tag>
+                        </Descriptions.Item>
+
                         <Descriptions.Item label="Type">
                             <Tag
                                 color={
@@ -951,6 +1094,24 @@ export default function ScholarshipPage() {
                             >
                                 {viewingScholarship.canCombine ? 'Yes' : 'No'}
                             </Tag>
+                        </Descriptions.Item>
+
+                        <Descriptions.Item label="Academic Year">
+                            <Text>{viewingScholarship.academicYear?.name || '—'}</Text>
+                        </Descriptions.Item>
+
+                        <Descriptions.Item label="Fee Categories">
+                            {viewingScholarship.feeCategories && viewingScholarship.feeCategories.length > 0 ? (
+                                <Space size={4} wrap>
+                                    {viewingScholarship.feeCategories.map((c) => (
+                                        <Tag key={c.id} style={{ borderRadius: 6 }}>
+                                            {c.name}
+                                        </Tag>
+                                    ))}
+                                </Space>
+                            ) : (
+                                <Text type="secondary">—</Text>
+                            )}
                         </Descriptions.Item>
 
                         <Descriptions.Item label="Status">

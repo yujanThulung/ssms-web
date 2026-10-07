@@ -65,10 +65,13 @@ import {
 } from '../../features/discounts'
 import type { ApiResponse } from '../../lib/api/types'
 import type { DiscountFormValues } from '../../features/discounts/types'
+import { useAcademicYears, type AcademicYear } from '../../features/academic-years'
+import { useFeeCategories, type FeeCategory } from '../../features/fee-categories'
+import { toListArray } from '../../features/fee-structures'
 
 const { Text } = Typography
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─ Constants 
 
 const TYPE_OPTIONS = [
     { label: 'Percentage (%)', value: DiscountType.PERCENTAGE },
@@ -85,7 +88,7 @@ const TYPE_LABELS: Record<string, string> = {
     [DiscountType.FIXED_AMOUNT]: 'Fixed Amount',
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─ Helpers 
 
 function formatDiscountValue(type: DiscountType, value: string | number): string {
     const num = typeof value === 'string' ? parseFloat(value) : value
@@ -123,7 +126,7 @@ function toCsvRow(d: Discount) {
     ]
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─ Page ─
 
 export default function DiscountPage() {
     const { can } = usePermission()
@@ -132,7 +135,7 @@ export default function DiscountPage() {
     const canDelete = can(FEATURES.DISCOUNT_SCHOLARSHIP, ACTIONS.DELETE)
     const qc = useQueryClient()
 
-    // ── URL query state ───────────────────────────────────────────────────────
+    //  URL query state ─
     const [search, setSearch] = useQueryState('search', parseAsString.withDefault(''))
     const [statusFilter, setStatusFilter] = useQueryState('status')
     const [typeFilter, setTypeFilter] = useQueryState('type')
@@ -144,7 +147,7 @@ export default function DiscountPage() {
         parseAsStringLiteral(['ASC', 'DESC'] as const).withDefault('DESC')
     )
 
-    // ── Drawer state ──────────────────────────────────────────────────────────
+    //  Drawer state 
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [editingDiscount, setEditingDiscount] = useState<Discount | null>(null)
     const [viewingDiscount, setViewingDiscount] = useState<Discount | null>(null)
@@ -152,7 +155,7 @@ export default function DiscountPage() {
     const [pendingStatusId, setPendingStatusId] = useState<string | null>(null)
     const [form] = Form.useForm<DiscountFormValues>()
 
-    // ── Data ──────────────────────────────────────────────────────────────────
+    //  Data 
     const listParams = useMemo(
         () => ({
             page,
@@ -183,7 +186,25 @@ export default function DiscountPage() {
         return undefined
     }, [data])
 
-    // ── Mutations ─────────────────────────────────────────────────────────────
+    //  Reference Data 
+    const { data: academicYearsRes } = useAcademicYears()
+    const { data: feeCategoriesRes } = useFeeCategories()
+
+    const academicYearOptions = useMemo(() => {
+        return toListArray<AcademicYear>(academicYearsRes).map((ay) => ({
+            label: ay.name,
+            value: ay.id,
+        }))
+    }, [academicYearsRes])
+
+    const feeCategoryOptions = useMemo(() => {
+        return toListArray<FeeCategory>(feeCategoriesRes).map((fc) => ({
+            label: fc.name,
+            value: fc.id,
+        }))
+    }, [feeCategoriesRes])
+
+    //  Mutations ─
     const { mutateAsync: createDiscount, isPending: isCreating } = useCreateDiscount()
     const { mutateAsync: updateDiscount, isPending: isUpdating } = useUpdateDiscount(
         editingDiscount?.id ?? ''
@@ -201,7 +222,7 @@ export default function DiscountPage() {
             },
         })
 
-    // ── KPI cards ─────────────────────────────────────────────────────────────
+    //  KPI cards ─
     const kpiCards = useMemo<KpiItem[]>(() => {
         const total = meta?.total ?? discounts.length
         const active = discounts.filter((d) => d.status === DiscountStatus.ACTIVE).length
@@ -252,7 +273,7 @@ export default function DiscountPage() {
         ]
     }, [meta?.total, discounts])
 
-    // ── Handlers ──────────────────────────────────────────────────────────────
+    //  Handlers 
 
     const handleOpenAdd = () => {
         setEditingDiscount(null)
@@ -272,6 +293,8 @@ export default function DiscountPage() {
             canCombine: discount.canCombine,
             effectiveDateBS: discount.effectiveDateBS || discount.effectiveDate,
             expiryDateBS: discount.expiryDateBS || discount.expiryDate || undefined,
+            academicYearId: discount.academicYear?.id,
+            feeCategoryIds: discount.feeCategories?.map((fc) => fc.id) || [],
         })
         setDrawerOpen(true)
     }
@@ -287,6 +310,8 @@ export default function DiscountPage() {
                 canCombine: values.canCombine ?? false,
                 effectiveDate: values.effectiveDateBS,
                 expiryDate: values.expiryDateBS || null,
+                academicYearId: values.academicYearId,
+                feeCategoryIds: values.feeCategoryIds,
             }
 
             if (editingDiscount) {
@@ -355,7 +380,7 @@ export default function DiscountPage() {
         setPage(1)
     }
 
-    // ── Filter columns ────────────────────────────────────────────────────────
+    //  Filter columns 
     const filterColumns: SmartColumn[] = [
         { key: 'name', title: 'Discount Name / Code', isSearchable: true },
         {
@@ -374,7 +399,7 @@ export default function DiscountPage() {
         },
     ]
 
-    // ── Table columns ─────────────────────────────────────────────────────────
+    //  Table columns ─
     const columns: ColumnsType<Discount> = [
         {
             title: 'Name',
@@ -415,6 +440,31 @@ export default function DiscountPage() {
                             {code}
                         </Tag>
                     </Tooltip>
+                ) : (
+                    <span style={{ color: colors.muted }}>—</span>
+                ),
+        },
+        {
+            title: 'Academic Year',
+            dataIndex: 'academicYear',
+            key: 'academicYear',
+            width: 150,
+            render: (ay: any) => ay?.name || '—',
+        },
+        {
+            title: 'Fee Categories',
+            dataIndex: 'feeCategories',
+            key: 'feeCategories',
+            width: 200,
+            render: (categories: any[]) =>
+                categories && categories.length > 0 ? (
+                    <Space size={4} wrap>
+                        {categories.map((c) => (
+                            <Tag key={c.id} style={{ borderRadius: 6 }}>
+                                {c.name}
+                            </Tag>
+                        ))}
+                    </Space>
                 ) : (
                     <span style={{ color: colors.muted }}>—</span>
                 ),
@@ -571,11 +621,11 @@ export default function DiscountPage() {
         },
     ]
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // ─
 
     return (
         <div>
-            {/* ── Header ───────────────────────────────────────────────────── */}
+            {/*  Header ─ */}
             <PageHeader
                 title="Discounts"
                 description="Percentage or fixed amount reductions, with expiry and combination rules"
@@ -598,10 +648,10 @@ export default function DiscountPage() {
                 }
             />
 
-            {/* ── KPI Cards ─────────────────────────────────────────────────── */}
+            {/*  KPI Cards ─ */}
             <KpiRow items={kpiCards} loading={isLoading} />
 
-            {/* ── Search & Filter ───────────────────────────────────────────── */}
+            {/*  Search & Filter ─ */}
             <SearchAndFilter
                 columns={filterColumns}
                 searchValue={search}
@@ -621,7 +671,7 @@ export default function DiscountPage() {
                 }}
             />
 
-            {/* ── Table ────────────────────────────────────────────────────── */}
+            {/*  Table  */}
             {isLoading ? (
                 <div
                     style={{
@@ -652,7 +702,7 @@ export default function DiscountPage() {
                 />
             )}
 
-            {/* ── Add / Edit Drawer ────────────────────────────────────────── */}
+            {/*  Add / Edit Drawer  */}
             <Drawer
                 title={
                     editingDiscount
@@ -778,6 +828,42 @@ export default function DiscountPage() {
                         </Col>
                     </Row>
 
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item
+                                name="academicYearId"
+                                label="Academic Year"
+                                rules={[{ required: true, message: 'Please select an academic year' }]}
+                            >
+                                <Select
+                                    placeholder="Select academic year"
+                                    options={academicYearOptions}
+                                    showSearch
+                                    filterOption={(input, option) =>
+                                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                    }
+                                />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item
+                                name="feeCategoryIds"
+                                label="Fee Categories"
+                                rules={[{ required: true, message: 'Please select at least one fee category' }]}
+                            >
+                                <Select
+                                    mode="multiple"
+                                    placeholder="Select fee categories"
+                                    options={feeCategoryOptions}
+                                    showSearch
+                                    filterOption={(input, option) =>
+                                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                    }
+                                />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+
                     <Form.Item
                         name="canCombine"
                         label="Can Combine with Other Discounts"
@@ -831,21 +917,21 @@ export default function DiscountPage() {
                 options={
                     statusDiscount?.status === DiscountStatus.ACTIVE
                         ? [
-                              {
-                                  value: DiscountStatus.INACTIVE,
-                                  label: 'Inactive',
-                                  color: 'warning',
-                                  help: 'The discount will no longer be available for new assignments. Existing assignments remain unaffected.',
-                              },
-                          ]
+                            {
+                                value: DiscountStatus.INACTIVE,
+                                label: 'Inactive',
+                                color: 'warning',
+                                help: 'The discount will no longer be available for new assignments. Existing assignments remain unaffected.',
+                            },
+                        ]
                         : [
-                              {
-                                  value: DiscountStatus.ACTIVE,
-                                  label: 'Active',
-                                  color: 'success',
-                                  help: 'The discount will become available for new student assignments.',
-                              },
-                          ]
+                            {
+                                value: DiscountStatus.ACTIVE,
+                                label: 'Active',
+                                color: 'success',
+                                help: 'The discount will become available for new student assignments.',
+                            },
+                        ]
                 }
                 onConfirm={async (nextStatus) => {
                     if (!statusDiscount) return
@@ -868,7 +954,7 @@ export default function DiscountPage() {
                 }}
             />
 
-            {/* ── View Details Drawer ───────────────────────────────────────── */}
+            {/*  View Details Drawer ─ */}
             <Drawer
                 title="Discount Details"
                 open={!!viewingDiscount}
@@ -950,6 +1036,24 @@ export default function DiscountPage() {
                             >
                                 {viewingDiscount.canCombine ? 'Yes' : 'No'}
                             </Tag>
+                        </Descriptions.Item>
+
+                        <Descriptions.Item label="Academic Year">
+                            <Text>{viewingDiscount.academicYear?.name || '—'}</Text>
+                        </Descriptions.Item>
+
+                        <Descriptions.Item label="Fee Categories">
+                            {viewingDiscount.feeCategories && viewingDiscount.feeCategories.length > 0 ? (
+                                <Space size={4} wrap>
+                                    {viewingDiscount.feeCategories.map((c) => (
+                                        <Tag key={c.id} style={{ borderRadius: 6 }}>
+                                            {c.name}
+                                        </Tag>
+                                    ))}
+                                </Space>
+                            ) : (
+                                <Text type="secondary">—</Text>
+                            )}
                         </Descriptions.Item>
 
                         <Descriptions.Item label="Status">

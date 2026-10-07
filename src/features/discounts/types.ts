@@ -34,6 +34,16 @@ export interface Discount extends BaseEntity {
   expiryDate: string | null
   /** BS date YYYY-MM-DD | null */
   expiryDateBS: string | null
+  academicYear: {
+    id: string
+    name: string
+    startDate?: string
+  }
+  feeCategories: {
+    id: string
+    name: string
+    code?: string
+  }[]
 }
 
 // ─── Payloads ─────────────────────────────────────────────────────────────────
@@ -48,6 +58,8 @@ export interface CreateDiscountPayload {
   effectiveDate: string
   /** BS date YYYY-MM-DD (optional) */
   expiryDate?: string | null
+  academicYearId: string
+  feeCategoryIds: string[]
 }
 
 export interface UpdateDiscountPayload {
@@ -58,6 +70,8 @@ export interface UpdateDiscountPayload {
   canCombine?: boolean
   effectiveDate?: string
   expiryDate?: string | null
+  academicYearId?: string
+  feeCategoryIds?: string[]
 }
 
 export interface ChangeDiscountStatusPayload {
@@ -75,6 +89,8 @@ export interface DiscountFormValues {
   /** effectiveDate in AD (dayjs object stored as string for form) */
   effectiveDateBS: string
   expiryDateBS?: string | null
+  academicYearId: string
+  feeCategoryIds: string[]
 }
 
 // ─── Query params ─────────────────────────────────────────────────────────────
@@ -88,6 +104,8 @@ export interface DiscountListParams {
   search?: string
   status?: string
   type?: string
+  academicYearId?: string
+  feeCategoryId?: string
   sortBy?: DiscountSortBy
   sortOrder?: DiscountSortOrder
 }

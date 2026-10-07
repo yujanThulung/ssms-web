@@ -5,22 +5,29 @@ import type { AcademicYear } from '../types'
 
 interface UseAcademicYearsParams {
   limit?: number
+  page?: number
   sortBy?: string
   sortOrder?: 'ASC' | 'DESC'
   enabled?: boolean
 }
 
 export function useAcademicYears({
-  limit = 10,
+  limit,
+  page,
   sortBy = 'startDate',
   sortOrder = 'DESC',
   enabled = true,
 }: UseAcademicYearsParams = {}) {
   const params = new URLSearchParams({
-    limit: String(limit),
     sortBy,
     sortOrder,
   })
+  if (limit !== undefined && limit > 0) {
+    params.append('limit', String(limit))
+  }
+  if (page !== undefined && page > 0) {
+    params.append('page', String(page))
+  }
   const url = `${ENDPOINTS.ACADEMIC_YEARS.LIST}?${params.toString()}`
   return useGet<ApiPaginatedResponse<AcademicYear>>(url, enabled)
 }
