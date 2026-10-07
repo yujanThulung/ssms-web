@@ -46,6 +46,7 @@ import { appConfirm } from '../../components/common/AppConfirm'
 import { FormHint } from '../../components/common/FormHint'
 import { TableSkeleton } from '../../components/skeleton'
 import { NepaliDatePicker } from '../../components/nepali-calendar'
+import { StatusChangeModal } from '../../components/common/StatusChangeModal'
 import { exportCsv } from '../../utils/csv'
 import apiClient from '../../lib/api/client'
 import { ENDPOINTS } from '../../lib/api/endpoints'
@@ -147,6 +148,7 @@ export default function DiscountPage() {
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [editingDiscount, setEditingDiscount] = useState<Discount | null>(null)
     const [viewingDiscount, setViewingDiscount] = useState<Discount | null>(null)
+    const [statusDiscount, setStatusDiscount] = useState<Discount | null>(null)
     const [pendingStatusId, setPendingStatusId] = useState<string | null>(null)
     const [form] = Form.useForm<DiscountFormValues>()
 
@@ -307,40 +309,7 @@ export default function DiscountPage() {
         }
     }
 
-    /** Toggle ACTIVE ↔ INACTIVE directly — the hook is id-bound so we call the
-     *  API client directly and manually invalidate, matching how the codebase
-     *  already handles ad-hoc imperative mutations. */
-    const handleToggleStatus = (discount: Discount) => {
-        const nextStatus =
-            discount.status === DiscountStatus.ACTIVE
-                ? DiscountStatus.INACTIVE
-                : DiscountStatus.ACTIVE
-        const actionLabel = nextStatus === DiscountStatus.ACTIVE ? 'activate' : 'deactivate'
-
-        appConfirm({
-            title: `${nextStatus === DiscountStatus.ACTIVE ? 'Activate' : 'Deactivate'} Discount?`,
-            content: `Are you sure you want to ${actionLabel} "${discount.name}"?`,
-            okText: nextStatus === DiscountStatus.ACTIVE ? 'Activate' : 'Deactivate',
-            okColor: nextStatus === DiscountStatus.ACTIVE ? 'green' : 'amber',
-            onOk: async () => {
-                setPendingStatusId(discount.id)
-                try {
-                    await apiClient.patch<ApiResponse<Discount>>(
-                        ENDPOINTS.DISCOUNTS.STATUS(discount.id),
-                        { status: nextStatus }
-                    )
-                    await invalidateDiscounts()
-                    toast.success(
-                        `Discount ${nextStatus === DiscountStatus.ACTIVE ? 'activated' : 'deactivated'} successfully`
-                    )
-                } catch (err) {
-                    toast.error((err as Error)?.message ?? 'Failed to update discount status')
-                } finally {
-                    setPendingStatusId(null)
-                }
-            },
-        })
-    }
+    // handleToggleStatus removed in favor of StatusChangeModal inline confirm
 
     const handleDelete = (discount: Discount) => {
         appConfirm({
@@ -532,16 +501,10 @@ export default function DiscountPage() {
                     onClick={(e) => {
                         if (canUpdate) {
                             e.stopPropagation()
-                            handleToggleStatus(record)
+                            setStatusDiscount(record)
                         }
                     }}
-                    title={
-                        canUpdate
-                            ? status === DiscountStatus.ACTIVE
-                                ? 'Click to deactivate'
-                                : 'Click to activate'
-                            : undefined
-                    }
+                    title={canUpdate ? 'Change Status' : undefined}
                     style={{
                         display: 'inline-block',
                         cursor: canUpdate ? 'pointer' : 'default',
@@ -859,6 +822,52 @@ export default function DiscountPage() {
                 </Form>
             </Drawer>
 
+            <StatusChangeModal<DiscountStatus>
+                open={!!statusDiscount}
+                onClose={() => setStatusDiscount(null)}
+                subject={statusDiscount?.name}
+                currentLabel={statusDiscount?.status === DiscountStatus.ACTIVE ? 'Active' : 'Inactive'}
+                currentColor={statusDiscount?.status === DiscountStatus.ACTIVE ? 'success' : 'warning'}
+                options={
+                    statusDiscount?.status === DiscountStatus.ACTIVE
+                        ? [
+                              {
+                                  value: DiscountStatus.INACTIVE,
+                                  label: 'Inactive',
+                                  color: 'warning',
+                                  help: 'The discount will no longer be available for new assignments. Existing assignments remain unaffected.',
+                              },
+                          ]
+                        : [
+                              {
+                                  value: DiscountStatus.ACTIVE,
+                                  label: 'Active',
+                                  color: 'success',
+                                  help: 'The discount will become available for new student assignments.',
+                              },
+                          ]
+                }
+                onConfirm={async (nextStatus) => {
+                    if (!statusDiscount) return
+                    setPendingStatusId(statusDiscount.id)
+                    try {
+                        await apiClient.patch<ApiResponse<Discount>>(
+                            ENDPOINTS.DISCOUNTS.STATUS(statusDiscount.id),
+                            { status: nextStatus }
+                        )
+                        await invalidateDiscounts()
+                        toast.success(
+                            `Discount ${nextStatus === DiscountStatus.ACTIVE ? 'activated' : 'deactivated'} successfully`
+                        )
+                    } catch (err) {
+                        toast.error((err as Error)?.message ?? 'Failed to update discount status')
+                        throw err
+                    } finally {
+                        setPendingStatusId(null)
+                    }
+                }}
+            />
+
             {/* ── View Details Drawer ───────────────────────────────────────── */}
             <Drawer
                 title="Discount Details"
@@ -953,11 +962,11 @@ export default function DiscountPage() {
                             </Text>
                         </Descriptions.Item>
 
-                        <Descriptions.Item label="Effective Date (AD)">
+                        {/* <Descriptions.Item label="Effective Date (AD)">
                             <Text style={{ fontFamily: 'monospace' }}>
                                 {viewingDiscount.effectiveDate}
                             </Text>
-                        </Descriptions.Item>
+                        </Descriptions.Item> */}
 
                         <Descriptions.Item label="Expiry Date (BS)">
                             <Text
@@ -975,7 +984,7 @@ export default function DiscountPage() {
                             </Text>
                         </Descriptions.Item>
 
-                        <Descriptions.Item label="Expiry Date (AD)">
+                        {/* <Descriptions.Item label="Expiry Date (AD)">
                             <Text
                                 style={{
                                     fontFamily: 'monospace',
@@ -984,23 +993,7 @@ export default function DiscountPage() {
                             >
                                 {viewingDiscount.expiryDate || 'No expiry'}
                             </Text>
-                        </Descriptions.Item>
-
-                        <Descriptions.Item label="Created At">
-                            <Text style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                                {viewingDiscount.createdAt
-                                    ? new Date(viewingDiscount.createdAt).toLocaleString()
-                                    : '—'}
-                            </Text>
-                        </Descriptions.Item>
-
-                        <Descriptions.Item label="Last Updated">
-                            <Text style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                                {viewingDiscount.updatedAt
-                                    ? new Date(viewingDiscount.updatedAt).toLocaleString()
-                                    : '—'}
-                            </Text>
-                        </Descriptions.Item>
+                        </Descriptions.Item> */}
                     </Descriptions>
                 )}
             </Drawer>

@@ -18,17 +18,18 @@ import {
 } from 'antd'
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
 import type { SorterResult } from 'antd/es/table/interface'
+import { useQueryClient } from '@tanstack/react-query'
 import {
     CheckCircleOutlined,
     DeleteOutlined,
     DownloadOutlined,
     EditOutlined,
     EyeOutlined,
+    LinkOutlined,
     PercentageOutlined,
     PlusOutlined,
-    TeamOutlined,
+    TagOutlined,
     TrophyOutlined,
-    WalletOutlined,
 } from '@ant-design/icons'
 import { toast } from 'sonner'
 
@@ -44,18 +45,27 @@ import type { KpiItem } from '../../components/common/KpiRow'
 import { PageHeader } from '../../components/common/PageHeader'
 import { appConfirm } from '../../components/common/AppConfirm'
 import { FormHint } from '../../components/common/FormHint'
+import { TableSkeleton } from '../../components/skeleton'
 import { NepaliDatePicker } from '../../components/nepali-calendar'
+import { StatusChangeModal } from '../../components/common/StatusChangeModal'
 import { exportCsv } from '../../utils/csv'
+import apiClient from '../../lib/api/client'
+import { ENDPOINTS } from '../../lib/api/endpoints'
 import {
-    EligibilityType,
-    MOCK_ACADEMIC_YEARS,
-    MOCK_CLASS_OPTIONS,
-    MOCK_SCHOLARSHIPS,
-    ScholarshipStatus,
+    useScholarships,
+    useCreateScholarship,
+    useUpdateScholarship,
+    useDeleteScholarship,
     ScholarshipType,
+    ScholarshipStatus,
     type Scholarship,
-    type ScholarshipFormValues,
-} from './mockData'
+    type CreateScholarshipPayload,
+    type UpdateScholarshipPayload,
+    type ScholarshipSortBy,
+    type ScholarshipSortOrder,
+} from '../../features/scholarships'
+import type { ApiResponse } from '../../lib/api/types'
+import type { ScholarshipFormValues } from '../../features/scholarships/types'
 
 const { Text } = Typography
 
@@ -71,86 +81,46 @@ const STATUS_OPTIONS = [
     { label: 'Inactive', value: ScholarshipStatus.INACTIVE },
 ]
 
-const ELIGIBILITY_OPTIONS = [
-    { label: 'Merit Based', value: EligibilityType.MERIT_BASED },
-    { label: 'Means Based', value: EligibilityType.MEANS_BASED },
-    { label: 'Special Achievement', value: EligibilityType.SPECIAL_ACHIEVEMENT },
-    { label: 'Staff Ward', value: EligibilityType.STAFF_WARD },
-]
-
-const ACADEMIC_YEAR_OPTIONS = MOCK_ACADEMIC_YEARS.map((year) => ({ label: year, value: year }))
-const CLASS_OPTIONS = MOCK_CLASS_OPTIONS.map((name) => ({ label: name, value: name }))
-
 const TYPE_LABELS: Record<string, string> = {
     [ScholarshipType.PERCENTAGE]: 'Percentage',
     [ScholarshipType.FIXED_AMOUNT]: 'Fixed Amount',
 }
 
-const ELIGIBILITY_LABELS: Record<string, string> = {
-    [EligibilityType.MERIT_BASED]: 'Merit Based',
-    [EligibilityType.MEANS_BASED]: 'Means Based',
-    [EligibilityType.SPECIAL_ACHIEVEMENT]: 'Special Achievement',
-    [EligibilityType.STAFF_WARD]: 'Staff Ward',
-}
-
-const ELIGIBILITY_COLORS: Record<string, string> = {
-    [EligibilityType.MERIT_BASED]: 'gold',
-    [EligibilityType.MEANS_BASED]: 'blue',
-    [EligibilityType.SPECIAL_ACHIEVEMENT]: 'cyan',
-    [EligibilityType.STAFF_WARD]: 'purple',
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-type ScholarshipSortBy = 'name' | 'value' | 'assignedStudents' | 'createdAt'
-type SortOrder = 'ASC' | 'DESC'
-
-function formatMoney(value: number | string | null | undefined): string {
-    if (value == null || value === '') return 'Rs. 0'
+function formatScholarshipValue(type: ScholarshipType, value: string | number): string {
     const num = typeof value === 'string' ? parseFloat(value) : value
-    if (Number.isNaN(num)) return 'Rs. 0'
-    return `Rs. ${num.toLocaleString('en-IN')}`
-}
-
-function formatScholarshipValue(record: Scholarship): string {
-    if (record.coverAllFees) return 'Full Fee'
-    const num = parseFloat(record.value)
-    if (Number.isNaN(num)) return '—'
-    return record.type === ScholarshipType.PERCENTAGE
+    if (isNaN(num)) return '—'
+    return type === ScholarshipType.PERCENTAGE
         ? `${num}%`
-        : formatMoney(num)
+        : `Rs. ${num.toLocaleString('en-IN')}`
 }
 
-function formatClassScope(classes: string[]): string {
-    if (classes.length === 0 || classes.length >= MOCK_CLASS_OPTIONS.length) return 'All Classes'
-    if (classes.length <= 2) return classes.join(', ')
-    return `${classes.slice(0, 2).join(', ')} +${classes.length - 2} more`
-}
-
-function columnSortOrder(sortBy: ScholarshipSortBy, sortOrder: SortOrder, key: ScholarshipSortBy) {
+function columnSortOrder(
+    sortBy: ScholarshipSortBy,
+    sortOrder: ScholarshipSortOrder,
+    key: ScholarshipSortBy
+) {
     return sortBy === key ? (sortOrder === 'ASC' ? 'ascend' : 'descend') : null
 }
 
 const CSV_HEADERS = [
-    'Code', 'Name', 'Eligibility', 'Type', 'Value', 'Classes', 'Academic Year',
-    'Assigned', 'Quota', 'Awarded (Rs.)', 'Status', 'Effective Date (BS)', 'Expiry Date (BS)',
+    'Code', 'Name', 'Type', 'Value', 'Can Combine',
+    'Status', 'Effective Date (BS)', 'Expiry Date (BS)', 'Description', 'Created At',
 ]
 
 function toCsvRow(s: Scholarship) {
     return [
         s.code,
         s.name,
-        ELIGIBILITY_LABELS[s.eligibilityType],
-        TYPE_LABELS[s.type],
-        s.coverAllFees ? 'Full Fee' : s.type === ScholarshipType.PERCENTAGE ? `${s.value}%` : `Rs. ${s.value}`,
-        formatClassScope(s.applicableClasses),
-        s.academicYear,
-        s.assignedStudents,
-        s.maxBeneficiaries ?? 'Unlimited',
-        s.awardedAmount,
+        TYPE_LABELS[s.type] || s.type,
+        parseFloat(s.value).toFixed(2),
+        s.canCombine ? 'Yes' : 'No',
         s.status,
         s.effectiveDateBS || s.effectiveDate,
         s.expiryDateBS || s.expiryDate,
+        s.description,
+        s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '',
     ]
 }
 
@@ -161,67 +131,90 @@ export default function ScholarshipPage() {
     const canCreate = can(FEATURES.DISCOUNT_SCHOLARSHIP, ACTIONS.CREATE)
     const canUpdate = can(FEATURES.DISCOUNT_SCHOLARSHIP, ACTIONS.UPDATE)
     const canDelete = can(FEATURES.DISCOUNT_SCHOLARSHIP, ACTIONS.DELETE)
-
-    // Mock store — swap for the scholarships API hooks once the endpoints exist.
-    const [scholarships, setScholarships] = useState<Scholarship[]>(MOCK_SCHOLARSHIPS)
+    const qc = useQueryClient()
 
     // ── URL query state ───────────────────────────────────────────────────────
     const [search, setSearch] = useQueryState('search', parseAsString.withDefault(''))
     const [statusFilter, setStatusFilter] = useQueryState('status')
-    const [eligibilityFilter, setEligibilityFilter] = useQueryState('eligibility')
+    const [typeFilter, setTypeFilter] = useQueryState('type')
     const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1))
     const [limit, setLimit] = useQueryState('limit', parseAsInteger.withDefault(10))
     const [sortBy, setSortBy] = useQueryState('sortBy', parseAsString.withDefault('createdAt'))
     const [sortOrder, setSortOrder] = useQueryState(
         'sortOrder',
-        parseAsStringLiteral(['ASC', 'DESC'] as const).withDefault('DESC'),
+        parseAsStringLiteral(['ASC', 'DESC'] as const).withDefault('DESC')
     )
 
     // ── Drawer state ──────────────────────────────────────────────────────────
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [editingScholarship, setEditingScholarship] = useState<Scholarship | null>(null)
     const [viewingScholarship, setViewingScholarship] = useState<Scholarship | null>(null)
+    const [statusScholarship, setStatusScholarship] = useState<Scholarship | null>(null)
     const [pendingStatusId, setPendingStatusId] = useState<string | null>(null)
-    const [isSaving, setIsSaving] = useState(false)
     const [form] = Form.useForm<ScholarshipFormValues>()
 
-    // ── Filtering + sorting ───────────────────────────────────────────────────
-    const filtered = useMemo(() => {
-        const term = search.trim().toLowerCase()
-        const rows = scholarships.filter((s) => {
-            if (term && !`${s.name} ${s.code}`.toLowerCase().includes(term)) return false
-            if (statusFilter && s.status !== statusFilter) return false
-            if (eligibilityFilter && s.eligibilityType !== eligibilityFilter) return false
-            return true
-        })
+    // ── Data ──────────────────────────────────────────────────────────────────
+    const listParams = useMemo(
+        () => ({
+            page,
+            limit,
+            search: search || undefined,
+            status: statusFilter || undefined,
+            type: typeFilter || undefined,
+            sortBy: sortBy as ScholarshipSortBy,
+            sortOrder,
+        }),
+        [page, limit, search, statusFilter, typeFilter, sortBy, sortOrder]
+    )
 
-        const key = sortBy as ScholarshipSortBy
-        const direction = sortOrder === 'ASC' ? 1 : -1
-        return [...rows].sort((a, b) => {
-            if (key === 'value') return (parseFloat(a.value) - parseFloat(b.value)) * direction
-            if (key === 'assignedStudents') return (a.assignedStudents - b.assignedStudents) * direction
-            if (key === 'createdAt') return (Date.parse(a.createdAt) - Date.parse(b.createdAt)) * direction
-            return a.name.localeCompare(b.name) * direction
-        })
-    }, [scholarships, search, statusFilter, eligibilityFilter, sortBy, sortOrder])
+    const { data, isLoading, isFetching } = useScholarships(listParams)
 
-    const paged = useMemo(() => {
-        const start = (page - 1) * limit
-        return filtered.slice(start, start + limit)
-    }, [filtered, page, limit])
+    const scholarships: Scholarship[] = useMemo(() => {
+        if (!data) return []
+        if (Array.isArray(data.data)) return data.data
+        return []
+    }, [data])
+
+    const meta = useMemo(() => {
+        if (data && typeof data === 'object' && 'meta' in data) {
+            return (data as unknown as Record<string, unknown>).meta as
+                | { total?: number }
+                | undefined
+        }
+        return undefined
+    }, [data])
+
+    // ── Mutations ─────────────────────────────────────────────────────────────
+    const { mutateAsync: createScholarship, isPending: isCreating } = useCreateScholarship()
+    const { mutateAsync: updateScholarship, isPending: isUpdating } = useUpdateScholarship(
+        editingScholarship?.id ?? ''
+    )
+    const { mutateAsync: deleteScholarship } = useDeleteScholarship()
+
+    const isSaving = isCreating || isUpdating
+
+    /** Invalidate the scholarship list after a status change */
+    const invalidateScholarships = () =>
+        qc.invalidateQueries({
+            predicate: (q) => {
+                const key = q.queryKey[0]
+                return typeof key === 'string' && key.startsWith(ENDPOINTS.SCHOLARSHIPS.BASE)
+            },
+        })
 
     // ── KPI cards ─────────────────────────────────────────────────────────────
     const kpiCards = useMemo<KpiItem[]>(() => {
-        const active = scholarships.filter((s) => s.status === ScholarshipStatus.ACTIVE)
-        const beneficiaries = scholarships.reduce((sum, s) => sum + s.assignedStudents, 0)
-        const awarded = scholarships.reduce((sum, s) => sum + s.awardedAmount, 0)
-        const fullFee = active.filter((s) => s.coverAllFees).length
+        const total = meta?.total ?? scholarships.length
+        const active = scholarships.filter((s) => s.status === ScholarshipStatus.ACTIVE).length
+        const percentage = scholarships.filter((s) => s.type === ScholarshipType.PERCENTAGE).length
+        const fixed = scholarships.filter((s) => s.type === ScholarshipType.FIXED_AMOUNT).length
+        const combinable = scholarships.filter((s) => s.canCombine).length
         return [
             {
                 key: 'total',
                 icon: <TrophyOutlined />,
                 label: 'Total Scholarships',
-                value: scholarships.length,
+                value: total,
                 color: colors.primary,
                 iconBg: colors.primaryLight,
             },
@@ -229,49 +222,43 @@ export default function ScholarshipPage() {
                 key: 'active',
                 icon: <CheckCircleOutlined />,
                 label: 'Active',
-                value: active.length,
+                value: active,
                 color: colors.success,
                 iconBg: colors.successLight,
             },
             {
-                key: 'full-fee',
+                key: 'percentage',
                 icon: <PercentageOutlined />,
-                label: 'Full Fee Waivers',
-                value: fullFee,
+                label: 'Percentage',
+                value: percentage,
                 color: colors.info,
                 iconBg: colors.infoLight,
             },
             {
-                key: 'beneficiaries',
-                icon: <TeamOutlined />,
-                label: 'Beneficiaries',
-                value: beneficiaries,
+                key: 'fixed',
+                icon: <TagOutlined />,
+                label: 'Fixed Amount',
+                value: fixed,
                 color: colors.warning,
                 iconBg: colors.warningLight,
             },
             {
-                key: 'awarded',
-                icon: <WalletOutlined />,
-                label: 'Awarded Amount',
-                value: formatMoney(awarded),
+                key: 'combinable',
+                icon: <LinkOutlined />,
+                label: 'Combinable',
+                value: combinable,
                 color: colors.muted,
                 iconBg: colors.secondary,
             },
         ]
-    }, [scholarships])
+    }, [meta?.total, scholarships])
 
     // ── Handlers ──────────────────────────────────────────────────────────────
 
     const handleOpenAdd = () => {
         setEditingScholarship(null)
         form.resetFields()
-        form.setFieldsValue({
-            type: ScholarshipType.PERCENTAGE,
-            coverAllFees: false,
-            eligibilityType: EligibilityType.MERIT_BASED,
-            academicYear: MOCK_ACADEMIC_YEARS[0],
-            applicableClasses: [],
-        })
+        form.setFieldsValue({ type: ScholarshipType.PERCENTAGE, canCombine: false })
         setDrawerOpen(true)
     }
 
@@ -280,14 +267,10 @@ export default function ScholarshipPage() {
         form.resetFields()
         form.setFieldsValue({
             name: scholarship.name,
-            description: scholarship.description ?? undefined,
+            description: scholarship.description ?? '',
             type: scholarship.type,
             value: parseFloat(scholarship.value),
-            coverAllFees: scholarship.coverAllFees,
-            eligibilityType: scholarship.eligibilityType,
-            academicYear: scholarship.academicYear,
-            applicableClasses: scholarship.applicableClasses,
-            maxBeneficiaries: scholarship.maxBeneficiaries ?? undefined,
+            canCombine: scholarship.canCombine,
             effectiveDateBS: scholarship.effectiveDateBS || scholarship.effectiveDate,
             expiryDateBS: scholarship.expiryDateBS || scholarship.expiryDate || undefined,
         })
@@ -297,50 +280,22 @@ export default function ScholarshipPage() {
     const handleFormSubmit = async () => {
         try {
             const values = await form.validateFields()
-            setIsSaving(true)
+            const payload: CreateScholarshipPayload = {
+                name: values.name.trim(),
+                description: values.description?.trim() || undefined,
+                type: values.type,
+                value: values.value,
+                canCombine: values.canCombine ?? false,
+                effectiveDate: values.effectiveDateBS,
+                expiryDate: values.expiryDateBS || null,
+            }
 
             if (editingScholarship) {
-                setScholarships((prev) =>
-                    prev.map((s) =>
-                        s.id === editingScholarship.id
-                            ? {
-                                ...s,
-                                ...values,
-                                description: values.description?.trim() || null,
-                                value: (values.value ?? 0).toFixed(2),
-                                applicableClasses: values.applicableClasses ?? [],
-                                maxBeneficiaries: values.maxBeneficiaries ?? null,
-                                effectiveDate: values.effectiveDateBS,
-                                expiryDateBS: values.expiryDateBS ?? null,
-                                expiryDate: values.expiryDateBS ?? null,
-                                updatedAt: new Date().toISOString(),
-                            }
-                            : s,
-                    ),
-                )
+                const updatePayload: UpdateScholarshipPayload = { ...payload }
+                await updateScholarship(updatePayload)
                 toast.success('Scholarship updated successfully')
             } else {
-                const now = new Date().toISOString()
-                setScholarships((prev) => [
-                    {
-                        ...values,
-                        id: `sch-${Date.now()}`,
-                        code: `SCH-${Math.random().toString(16).slice(2, 10).toUpperCase()}`,
-                        description: values.description?.trim() || null,
-                        value: (values.value ?? 0).toFixed(2),
-                        applicableClasses: values.applicableClasses ?? [],
-                        maxBeneficiaries: values.maxBeneficiaries ?? null,
-                        effectiveDate: values.effectiveDateBS,
-                        expiryDateBS: values.expiryDateBS ?? null,
-                        expiryDate: values.expiryDateBS ?? null,
-                        assignedStudents: 0,
-                        awardedAmount: 0,
-                        status: ScholarshipStatus.ACTIVE,
-                        createdAt: now,
-                        updatedAt: now,
-                    },
-                    ...prev,
-                ])
+                await createScholarship(payload)
                 toast.success('Scholarship created successfully')
             }
 
@@ -352,54 +307,20 @@ export default function ScholarshipPage() {
             } else {
                 toast.error((err as Error)?.message ?? 'Failed to save scholarship')
             }
-        } finally {
-            setIsSaving(false)
         }
     }
 
-    const handleToggleStatus = (scholarship: Scholarship) => {
-        const nextStatus =
-            scholarship.status === ScholarshipStatus.ACTIVE
-                ? ScholarshipStatus.INACTIVE
-                : ScholarshipStatus.ACTIVE
-        const activating = nextStatus === ScholarshipStatus.ACTIVE
-
-        appConfirm({
-            title: `${activating ? 'Activate' : 'Deactivate'} Scholarship?`,
-            content: `Are you sure you want to ${activating ? 'activate' : 'deactivate'} "${scholarship.name}"?`,
-            okText: activating ? 'Activate' : 'Deactivate',
-            okColor: activating ? 'green' : 'amber',
-            onOk: async () => {
-                setPendingStatusId(scholarship.id)
-                try {
-                    await new Promise((resolve) => setTimeout(resolve, 250))
-                    setScholarships((prev) =>
-                        prev.map((s) =>
-                            s.id === scholarship.id
-                                ? { ...s, status: nextStatus, updatedAt: new Date().toISOString() }
-                                : s,
-                        ),
-                    )
-                    toast.success(`Scholarship ${activating ? 'activated' : 'deactivated'} successfully`)
-                } catch (err) {
-                    toast.error((err as Error)?.message ?? 'Failed to update scholarship status')
-                } finally {
-                    setPendingStatusId(null)
-                }
-            },
-        })
-    }
+    // handleToggleStatus removed in favor of StatusChangeModal inline confirm
 
     const handleDelete = (scholarship: Scholarship) => {
         appConfirm({
             title: 'Delete Scholarship?',
-            content: `Are you sure you want to delete "${scholarship.name}" (${scholarship.code})? This cannot be undone once assignments exist.`,
+            content: `Are you sure you want to delete "${scholarship.name}" (${scholarship.code})? This cannot be undone if the scholarship has no approved assignments.`,
             okText: 'Delete',
             okColor: 'danger',
             onOk: async () => {
                 try {
-                    await new Promise((resolve) => setTimeout(resolve, 250))
-                    setScholarships((prev) => prev.filter((s) => s.id !== scholarship.id))
+                    await deleteScholarship(scholarship.id)
                     toast.success('Scholarship deleted successfully')
                 } catch (err) {
                     toast.error((err as Error)?.message ?? 'Failed to delete scholarship')
@@ -409,7 +330,7 @@ export default function ScholarshipPage() {
     }
 
     const handleExportCsv = () => {
-        const ok = exportCsv('scholarships', CSV_HEADERS, filtered.map(toCsvRow))
+        const ok = exportCsv('scholarships', CSV_HEADERS, scholarships.map(toCsvRow))
         if (!ok) toast.warning('No scholarships available to export')
         else toast.success('Scholarships exported to CSV')
     }
@@ -417,7 +338,7 @@ export default function ScholarshipPage() {
     const handleTableChange = (
         pagination: TablePaginationConfig,
         _filters: unknown,
-        sorter: SorterResult<Scholarship> | SorterResult<Scholarship>[],
+        sorter: SorterResult<Scholarship> | SorterResult<Scholarship>[]
     ) => {
         if (pagination.current) setPage(pagination.current)
         if (pagination.pageSize) {
@@ -427,7 +348,8 @@ export default function ScholarshipPage() {
         const activeSorter = Array.isArray(sorter) ? sorter[0] : sorter
         if (!activeSorter?.order || !activeSorter.columnKey) return
         const nextSortBy = activeSorter.columnKey as ScholarshipSortBy
-        const nextSortOrder: SortOrder = activeSorter.order === 'ascend' ? 'ASC' : 'DESC'
+        const nextSortOrder: ScholarshipSortOrder =
+            activeSorter.order === 'ascend' ? 'ASC' : 'DESC'
         if (nextSortBy === sortBy && nextSortOrder === sortOrder) return
         setSortBy(nextSortBy)
         setSortOrder(nextSortOrder)
@@ -445,11 +367,11 @@ export default function ScholarshipPage() {
             filterOptions: STATUS_OPTIONS,
         },
         {
-            key: 'eligibility',
-            title: 'Eligibility',
+            key: 'type',
+            title: 'Type',
             isFilterable: true,
-            filterWidth: 190,
-            filterOptions: ELIGIBILITY_OPTIONS,
+            filterWidth: 170,
+            filterOptions: TYPE_OPTIONS,
         },
     ]
 
@@ -459,7 +381,7 @@ export default function ScholarshipPage() {
             title: 'Name',
             dataIndex: 'name',
             key: 'name',
-            width: 230,
+            width: 220,
             sorter: true,
             sortOrder: columnSortOrder(sortBy as ScholarshipSortBy, sortOrder, 'name'),
             render: (text: string, record: Scholarship) => (
@@ -477,7 +399,7 @@ export default function ScholarshipPage() {
             title: 'Code',
             dataIndex: 'code',
             key: 'code',
-            width: 160,
+            width: 175,
             render: (code?: string) =>
                 code ? (
                     <Tooltip title="Auto-generated · immutable">
@@ -499,84 +421,74 @@ export default function ScholarshipPage() {
                 ),
         },
         {
-            title: 'Eligibility',
-            dataIndex: 'eligibilityType',
-            key: 'eligibilityType',
-            width: 165,
-            render: (eligibility: EligibilityType) => (
-                <Tag color={ELIGIBILITY_COLORS[eligibility]} style={{ borderRadius: 6, fontWeight: 500 }}>
-                    {ELIGIBILITY_LABELS[eligibility] || eligibility}
+            title: 'Type',
+            dataIndex: 'type',
+            key: 'type',
+            width: 140,
+            render: (type: ScholarshipType) => (
+                <Tag
+                    color={type === ScholarshipType.PERCENTAGE ? 'purple' : 'orange'}
+                    style={{ borderRadius: 6, fontWeight: 500 }}
+                >
+                    {TYPE_LABELS[type] || type}
                 </Tag>
             ),
         },
         {
-            title: 'Benefit',
+            title: 'Value',
+            dataIndex: 'value',
             key: 'value',
-            width: 140,
+            width: 130,
             sorter: true,
             sortOrder: columnSortOrder(sortBy as ScholarshipSortBy, sortOrder, 'value'),
-            render: (_: unknown, record: Scholarship) => (
+            render: (value: string, record: Scholarship) => (
                 <span
                     style={{
-                        fontFamily: record.coverAllFees ? 'inherit' : 'monospace',
+                        fontFamily: 'monospace',
                         fontWeight: 600,
                         color: colors.primary,
                     }}
                 >
-                    {formatScholarshipValue(record)}
+                    {formatScholarshipValue(record.type, value)}
                 </span>
             ),
         },
         {
-            title: 'Applies To',
-            dataIndex: 'applicableClasses',
-            key: 'applicableClasses',
-            width: 180,
-            render: (classes: string[]) => (
-                <Tooltip title={classes.length ? classes.join(', ') : 'All classes'}>
-                    <span style={{ color: colors.textSecondary, cursor: 'default' }}>
-                        {formatClassScope(classes ?? [])}
-                    </span>
-                </Tooltip>
+            title: 'Can Combine',
+            dataIndex: 'canCombine',
+            key: 'canCombine',
+            width: 120,
+            render: (v: boolean) => (
+                <Tag color={v ? 'cyan' : 'default'} style={{ borderRadius: 6 }}>
+                    {v ? 'Yes' : 'No'}
+                </Tag>
             ),
         },
         {
-            title: 'Academic Year',
-            dataIndex: 'academicYear',
-            key: 'academicYear',
-            width: 130,
-            render: (year: string) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{year}</span>,
-        },
-        {
-            title: 'Beneficiaries',
-            dataIndex: 'assignedStudents',
-            key: 'assignedStudents',
-            width: 145,
+            title: 'Effective (BS)',
+            key: 'effectiveDate',
+            width: 140,
             sorter: true,
-            sortOrder: columnSortOrder(
-                sortBy as ScholarshipSortBy,
-                sortOrder,
-                'assignedStudents',
-            ),
-            render: (assigned: number, record: Scholarship) => (
+            sortOrder: columnSortOrder(sortBy as ScholarshipSortBy, sortOrder, 'effectiveDate'),
+            render: (_: unknown, record: Scholarship) => (
                 <span style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                    {assigned}
-                    <span style={{ color: colors.muted }}>
-                        {' / '}
-                        {record.maxBeneficiaries ?? '∞'}
-                    </span>
+                    {record.effectiveDateBS || record.effectiveDate || '—'}
                 </span>
             ),
         },
         {
-            title: 'Awarded',
-            dataIndex: 'awardedAmount',
-            key: 'awardedAmount',
+            title: 'Expiry (BS)',
+            key: 'expiryDate',
             width: 130,
-            align: 'right',
-            render: (amount: number) => (
-                <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 500 }}>
-                    {formatMoney(amount)}
+            render: (_: unknown, record: Scholarship) => (
+                <span
+                    style={{
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        color: record.expiryDateBS || record.expiryDate ? colors.text : colors.muted,
+                    }}
+                >
+                    {record.expiryDateBS || record.expiryDate || 'No expiry'}
                 </span>
             ),
         },
@@ -590,16 +502,10 @@ export default function ScholarshipPage() {
                     onClick={(e) => {
                         if (canUpdate) {
                             e.stopPropagation()
-                            handleToggleStatus(record)
+                            setStatusScholarship(record)
                         }
                     }}
-                    title={
-                        canUpdate
-                            ? status === ScholarshipStatus.ACTIVE
-                                ? 'Click to deactivate'
-                                : 'Click to activate'
-                            : undefined
-                    }
+                    title={canUpdate ? 'Change Status' : undefined}
                     style={{
                         display: 'inline-block',
                         cursor: canUpdate ? 'pointer' : 'default',
@@ -666,12 +572,14 @@ export default function ScholarshipPage() {
         },
     ]
 
+    // ─────────────────────────────────────────────────────────────────────────
+
     return (
         <div>
             {/* ── Header ───────────────────────────────────────────────────── */}
             <PageHeader
                 title="Scholarships"
-                description="Eligibility, benefit value, class scope and beneficiaries"
+                description="Percentage or fixed amount merit awards, with expiry and combination rules"
                 actions={
                     <>
                         <Button icon={<DownloadOutlined />} onClick={handleExportCsv}>
@@ -692,7 +600,7 @@ export default function ScholarshipPage() {
             />
 
             {/* ── KPI Cards ─────────────────────────────────────────────────── */}
-            <KpiRow items={kpiCards} />
+            <KpiRow items={kpiCards} loading={isLoading} />
 
             {/* ── Search & Filter ───────────────────────────────────────────── */}
             <SearchAndFilter
@@ -705,31 +613,45 @@ export default function ScholarshipPage() {
                 debounceMs={300}
                 filterValues={{
                     status: statusFilter || undefined,
-                    eligibility: eligibilityFilter || undefined,
+                    type: typeFilter || undefined,
                 }}
                 onFilterChange={(key, val) => {
                     if (key === 'status') setStatusFilter(val || null)
-                    if (key === 'eligibility') setEligibilityFilter(val || null)
+                    if (key === 'type') setTypeFilter(val || null)
                     setPage(1)
                 }}
             />
 
             {/* ── Table ────────────────────────────────────────────────────── */}
-            <AppTable<Scholarship>
-                rowKey="id"
-                columns={columns}
-                dataSource={paged}
-                onChange={handleTableChange}
-                onRowClick={(record) => setViewingScholarship(record)}
-                pagination={{
-                    current: page,
-                    pageSize: limit,
-                    total: filtered.length,
-                    showSizeChanger: true,
-                }}
-                scroll={{ x: 1500 }}
-                locale={{ emptyText: 'No scholarships found.' }}
-            />
+            {isLoading ? (
+                <div
+                    style={{
+                        backgroundColor: colors.surface,
+                        border: `1px solid ${colors.border}`,
+                        borderRadius: 12,
+                        overflow: 'hidden',
+                    }}
+                >
+                    <TableSkeleton rows={Math.min(limit, 5)} columns={8} />
+                </div>
+            ) : (
+                <AppTable<Scholarship>
+                    rowKey="id"
+                    columns={columns}
+                    dataSource={scholarships}
+                    loading={isFetching}
+                    onRowClick={(record) => setViewingScholarship(record)}
+                    onChange={handleTableChange}
+                    pagination={{
+                        current: page,
+                        pageSize: limit,
+                        total: meta?.total ?? scholarships.length,
+                        showSizeChanger: true,
+                    }}
+                    scroll={{ x: 1300 }}
+                    locale={{ emptyText: 'No scholarships found.' }}
+                />
+            )}
 
             {/* ── Add / Edit Drawer ────────────────────────────────────────── */}
             <Drawer
@@ -769,7 +691,10 @@ export default function ScholarshipPage() {
                         }}
                     >
                         <span style={{ color: colors.muted }}>Scholarship Code: </span>
-                        <Tag color="blue" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                        <Tag
+                            color="blue"
+                            style={{ fontFamily: 'monospace', fontWeight: 600 }}
+                        >
                             {editingScholarship.code}
                         </Tag>
                         <span style={{ color: colors.muted, marginLeft: 8, fontSize: 12 }}>
@@ -787,13 +712,13 @@ export default function ScholarshipPage() {
                             { max: 100, message: 'Name must be at most 100 characters' },
                         ]}
                     >
-                        <Input placeholder="e.g. Merit Toppers Scholarship" maxLength={100} />
+                        <Input placeholder="e.g. Merit Scholarship 2082" maxLength={100} />
                     </Form.Item>
 
                     <Form.Item name="description" label="Description">
                         <Input.TextArea
                             rows={3}
-                            placeholder="Brief description of who this scholarship is for..."
+                            placeholder="Brief description of this scholarship..."
                             maxLength={500}
                             showCount
                         />
@@ -802,47 +727,31 @@ export default function ScholarshipPage() {
                     <Row gutter={16}>
                         <Col span={12}>
                             <Form.Item
-                                name="eligibilityType"
-                                label="Eligibility Type"
-                                rules={[{ required: true, message: 'Please select an eligibility type' }]}
-                            >
-                                <Select placeholder="Select eligibility" options={ELIGIBILITY_OPTIONS} />
-                            </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item
-                                name="academicYear"
-                                label="Academic Year"
-                                rules={[{ required: true, message: 'Please select an academic year' }]}
-                            >
-                                <Select placeholder="Select academic year" options={ACADEMIC_YEAR_OPTIONS} />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item
                                 name="type"
-                                label="Benefit Type"
+                                label="Scholarship Type"
                                 rules={[{ required: true, message: 'Please select a type' }]}
                             >
                                 <Select
                                     placeholder="Select type"
                                     options={TYPE_OPTIONS}
-                                    onChange={() => form.setFieldValue('value', undefined)}
+                                    onChange={() => {
+                                        // Reset value when type changes to avoid invalid range
+                                        form.setFieldValue('value', undefined)
+                                    }}
                                 />
                             </Form.Item>
                         </Col>
+
                         <Col span={12}>
-                            {/* Re-renders on type change so validation bounds update */}
+                            {/* Re-renders when type changes so validation bounds update */}
                             <Form.Item shouldUpdate={(prev, curr) => prev.type !== curr.type} noStyle>
                                 {() => {
-                                    const isPercentage = form.getFieldValue('type') === ScholarshipType.PERCENTAGE
+                                    const type = form.getFieldValue('type') as ScholarshipType
+                                    const isPercentage = type === ScholarshipType.PERCENTAGE
                                     return (
                                         <Form.Item
                                             name="value"
-                                            label={isPercentage ? 'Benefit (%)' : 'Benefit Amount (Rs.)'}
+                                            label={isPercentage ? 'Percentage (%)' : 'Fixed Amount (Rs.)'}
                                             rules={[
                                                 { required: true, message: 'Please enter a value' },
                                                 {
@@ -871,29 +780,11 @@ export default function ScholarshipPage() {
                     </Row>
 
                     <Form.Item
-                        name="coverAllFees"
-                        label="Full Fee Waiver"
+                        name="canCombine"
+                        label="Can Combine with Other Programs"
                         valuePropName="checked"
                     >
                         <Switch checkedChildren="Yes" unCheckedChildren="No" />
-                    </Form.Item>
-
-                    <Form.Item
-                        name="applicableClasses"
-                        label="Applicable Classes"
-                        extra={<FormHint>Leave empty to apply to every class</FormHint>}
-                    >
-                        <Select
-                            mode="multiple"
-                            allowClear
-                            placeholder="All classes"
-                            options={CLASS_OPTIONS}
-                            maxTagCount="responsive"
-                        />
-                    </Form.Item>
-
-                    <Form.Item name="maxBeneficiaries" label="Beneficiary Quota">
-                        <InputNumber style={{ width: '100%' }} min={0} placeholder="Unlimited" />
                     </Form.Item>
 
                     <Row gutter={16}>
@@ -932,6 +823,52 @@ export default function ScholarshipPage() {
                 </Form>
             </Drawer>
 
+            <StatusChangeModal<ScholarshipStatus>
+                open={!!statusScholarship}
+                onClose={() => setStatusScholarship(null)}
+                subject={statusScholarship?.name}
+                currentLabel={statusScholarship?.status === ScholarshipStatus.ACTIVE ? 'Active' : 'Inactive'}
+                currentColor={statusScholarship?.status === ScholarshipStatus.ACTIVE ? 'success' : 'warning'}
+                options={
+                    statusScholarship?.status === ScholarshipStatus.ACTIVE
+                        ? [
+                              {
+                                  value: ScholarshipStatus.INACTIVE,
+                                  label: 'Inactive',
+                                  color: 'warning',
+                                  help: 'The scholarship will no longer be available for new assignments. Existing assignments remain unaffected.',
+                              },
+                          ]
+                        : [
+                              {
+                                  value: ScholarshipStatus.ACTIVE,
+                                  label: 'Active',
+                                  color: 'success',
+                                  help: 'The scholarship will become available for new student assignments.',
+                              },
+                          ]
+                }
+                onConfirm={async (nextStatus) => {
+                    if (!statusScholarship) return
+                    setPendingStatusId(statusScholarship.id)
+                    try {
+                        await apiClient.patch<ApiResponse<Scholarship>>(
+                            ENDPOINTS.SCHOLARSHIPS.STATUS(statusScholarship.id),
+                            { status: nextStatus }
+                        )
+                        await invalidateScholarships()
+                        toast.success(
+                            `Scholarship ${nextStatus === ScholarshipStatus.ACTIVE ? 'activated' : 'deactivated'} successfully`
+                        )
+                    } catch (err) {
+                        toast.error((err as Error)?.message ?? 'Failed to update scholarship status')
+                        throw err
+                    } finally {
+                        setPendingStatusId(null)
+                    }
+                }}
+            />
+
             {/* ── View Details Drawer ───────────────────────────────────────── */}
             <Drawer
                 title="Scholarship Details"
@@ -961,66 +898,59 @@ export default function ScholarshipPage() {
                         </Descriptions.Item>
 
                         <Descriptions.Item label="Code">
-                            <Tag color="blue" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                            <Tag
+                                color="blue"
+                                style={{ fontFamily: 'monospace', fontWeight: 600 }}
+                            >
                                 {viewingScholarship.code}
                             </Tag>
-                            <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
+                            <Text
+                                type="secondary"
+                                style={{ fontSize: 12, marginLeft: 8 }}
+                            >
                                 auto-generated · immutable
                             </Text>
                         </Descriptions.Item>
 
                         <Descriptions.Item label="Description">
-                            {viewingScholarship.description || <Text type="secondary">—</Text>}
+                            {viewingScholarship.description || (
+                                <Text type="secondary">—</Text>
+                            )}
                         </Descriptions.Item>
 
-                        <Descriptions.Item label="Eligibility Type">
+                        <Descriptions.Item label="Type">
                             <Tag
-                                color={ELIGIBILITY_COLORS[viewingScholarship.eligibilityType]}
+                                color={
+                                    viewingScholarship.type === ScholarshipType.PERCENTAGE
+                                        ? 'purple'
+                                        : 'orange'
+                                }
                                 style={{ borderRadius: 6, fontWeight: 500 }}
                             >
-                                {ELIGIBILITY_LABELS[viewingScholarship.eligibilityType]}
+                                {TYPE_LABELS[viewingScholarship.type] || viewingScholarship.type}
                             </Tag>
                         </Descriptions.Item>
 
-                        <Descriptions.Item label="Benefit">
+                        <Descriptions.Item label="Value">
                             <Text
                                 strong
                                 style={{
-                                    fontFamily: viewingScholarship.coverAllFees ? 'inherit' : 'monospace',
+                                    fontFamily: 'monospace',
                                     color: colors.primary,
                                     fontSize: 15,
                                 }}
                             >
-                                {formatScholarshipValue(viewingScholarship)}
-                            </Text>
-                            {viewingScholarship.coverAllFees ? (
-                                <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
-                                    full tuition waiver
-                                </Text>
-                            ) : null}
-                        </Descriptions.Item>
-
-                        <Descriptions.Item label="Academic Year">
-                            <Text style={{ fontFamily: 'monospace' }}>{viewingScholarship.academicYear}</Text>
-                        </Descriptions.Item>
-
-                        <Descriptions.Item label="Applicable Classes">
-                            {formatClassScope(viewingScholarship.applicableClasses)}
-                        </Descriptions.Item>
-
-                        <Descriptions.Item label="Beneficiaries">
-                            <Text style={{ fontFamily: 'monospace' }}>
-                                {viewingScholarship.assignedStudents} assigned
-                            </Text>
-                            <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
-                                quota {viewingScholarship.maxBeneficiaries ?? 'unlimited'}
+                                {formatScholarshipValue(viewingScholarship.type, viewingScholarship.value)}
                             </Text>
                         </Descriptions.Item>
 
-                        <Descriptions.Item label="Awarded Amount">
-                            <Text strong style={{ fontFamily: 'monospace' }}>
-                                {formatMoney(viewingScholarship.awardedAmount)}
-                            </Text>
+                        <Descriptions.Item label="Can Combine">
+                            <Tag
+                                color={viewingScholarship.canCombine ? 'cyan' : 'default'}
+                                style={{ borderRadius: 6 }}
+                            >
+                                {viewingScholarship.canCombine ? 'Yes' : 'No'}
+                            </Tag>
                         </Descriptions.Item>
 
                         <Descriptions.Item label="Status">
@@ -1030,12 +960,6 @@ export default function ScholarshipPage() {
                         <Descriptions.Item label="Effective Date (BS)">
                             <Text style={{ fontFamily: 'monospace' }}>
                                 {viewingScholarship.effectiveDateBS || viewingScholarship.effectiveDate}
-                            </Text>
-                        </Descriptions.Item>
-
-                        <Descriptions.Item label="Effective Date (AD)">
-                            <Text style={{ fontFamily: 'monospace' }}>
-                                {viewingScholarship.effectiveDate}
                             </Text>
                         </Descriptions.Item>
 
@@ -1052,29 +976,6 @@ export default function ScholarshipPage() {
                                 {viewingScholarship.expiryDateBS ||
                                     viewingScholarship.expiryDate ||
                                     'No expiry'}
-                            </Text>
-                        </Descriptions.Item>
-
-                        <Descriptions.Item label="Expiry Date (AD)">
-                            <Text
-                                style={{
-                                    fontFamily: 'monospace',
-                                    color: viewingScholarship.expiryDate ? colors.text : colors.muted,
-                                }}
-                            >
-                                {viewingScholarship.expiryDate || 'No expiry'}
-                            </Text>
-                        </Descriptions.Item>
-
-                        <Descriptions.Item label="Created At">
-                            <Text style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                                {new Date(viewingScholarship.createdAt).toLocaleString()}
-                            </Text>
-                        </Descriptions.Item>
-
-                        <Descriptions.Item label="Last Updated">
-                            <Text style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                                {new Date(viewingScholarship.updatedAt).toLocaleString()}
                             </Text>
                         </Descriptions.Item>
                     </Descriptions>

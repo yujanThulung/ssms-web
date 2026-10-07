@@ -1,0 +1,6 @@
+export * from './types'
+export { useScholarships } from './hooks/useScholarships'
+export { useCreateScholarship } from './hooks/useCreateScholarship'
+export { useUpdateScholarship } from './hooks/useUpdateScholarship'
+export { useChangeScholarshipStatus } from './hooks/useChangeScholarshipStatus'
+export { useDeleteScholarship } from './hooks/useDeleteScholarship'
