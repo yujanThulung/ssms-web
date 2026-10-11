@@ -28,6 +28,14 @@ export const ENDPOINTS = {
     BASE: '/accounts',
     DETAIL: (id: string | number) => `/accounts/${id}`,
   },
+  PROGRAM_ASSIGNMENTS: {
+    BASE: '/accounts/program-assignments',
+    DETAIL: (id: string) => `/accounts/program-assignments/${id}`,
+    REVIEW: (id: string) => `/accounts/program-assignments/${id}/review`,
+    TOGGLE_STATUS: (id: string) => `/accounts/program-assignments/${id}/toggle-status`,
+    PROGRAM_FEE_CATEGORIES: (programType: string, programId: string) =>
+      `/accounts/program-assignments/programs/${programType}/${programId}/fee-categories`,
+  },
   FEE_CATEGORIES: {
     BASE: '/fee-categories',
     DETAIL: (id: string | number) => `/fee-categories/${id}`,

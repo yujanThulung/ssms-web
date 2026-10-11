@@ -11,6 +11,7 @@ import {
   ArrowUpCircle,
   Tags,
   Percent,
+  Award,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { FEATURES } from '../utils'
@@ -46,6 +47,7 @@ export const people: SidebarItem[] = [
 
 export const accounts: SidebarItem[] = [
   { title: 'Fee Collection', url: '/accounts', icon: Wallet, feature: FEATURES.ACCOUNT },
+  { title: 'Program Assignments', url: '/accounts/program-assignments', icon: Award, feature: FEATURES.PROGRAM_ASSIGNMENT },
   // Discounts and Scholarships live in one screen behind tabs — see FeeStructurePage.
   { title: 'Discounts & Scholarships', url: '/discounts', icon: Percent, feature: FEATURES.DISCOUNT_SCHOLARSHIP },
 ]

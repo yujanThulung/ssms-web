@@ -21,6 +21,7 @@ export const FEATURES = {
   SETTINGS: 'settings',
   DASHBOARD: 'dashboard',
   DISCOUNT_SCHOLARSHIP: 'discount_scholarship',
+  PROGRAM_ASSIGNMENT: 'assignment',
 } as const
 
 export const ACTIONS = {
@@ -53,6 +54,11 @@ export function hasRole(user: AuthUser | null, ...roles: string[]): boolean {
   return roles.includes(user.role.name)
 }
 
+/** Accepts legacy/alternate feature names for the same capability. */
+const FEATURE_ALIASES: Record<string, string[]> = {
+  [FEATURES.PROGRAM_ASSIGNMENT]: [FEATURES.PROGRAM_ASSIGNMENT, 'program_assignment'],
+}
+
 /** Check if user has permission to perform an action on a feature */
 export function hasPermission(
   user: AuthUser | null,
@@ -63,11 +69,13 @@ export function hasPermission(
 
   if (isSuperAdmin(user)) return true;
 
+  const acceptedFeatures = FEATURE_ALIASES[feature] ?? [feature]
+
   return (
     user.permissions?.some(
       (p) =>
-        p?.feature === feature &&
-        p?.action === action,
+        acceptedFeatures.includes(p?.feature) &&
+        p?.action === action
     ) ?? false
   );
 }
