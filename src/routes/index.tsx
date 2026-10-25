@@ -15,6 +15,7 @@ const StudentsPage = lazy(() => import('../pages/students/StudentsPage'))
 const UsersPage = lazy(() => import('../pages/users/Users'))
 const AccountsPage = lazy(() => import('../pages/accounts/AccountsPage'))
 const ProgramAssignmentsPage = lazy(() => import('../pages/program-assignments/ProgramAssignmentsPage'))
+const FeeProfilePage = lazy(() => import('../pages/fee-profile/FeeProfilePage'))
 const PermissionsPage = lazy(() => import('../pages/permissions/PermissionsPage'))
 const SettingsPage = lazy(() => import('../pages/settings/SettingsPage'))
 const AcademicSessionPage = lazy(() => import('../pages/academic-session/AcademicSessionPage'))
@@ -32,6 +33,8 @@ const protectedRoutes = [
   { path: 'students/:id', element: <StudentsPage />, feature: FEATURES.STUDENT },
   { path: 'users', element: <UsersPage />, feature: FEATURES.USER },
   { path: 'accounts', element: <AccountsPage />, feature: FEATURES.ACCOUNT },
+  { path: 'accounts/fee-profiles', element: <FeeProfilePage />, feature: FEATURES.FEE_PROFILE },
+  { path: 'accounts/fee-profiles/:studentId', element: <FeeProfilePage />, feature: FEATURES.FEE_PROFILE },
   { path: 'accounts/program-assignments', element: <ProgramAssignmentsPage />, feature: FEATURES.PROGRAM_ASSIGNMENT },
   { path: 'fee-categories', element: <FeeCategoryPage />, feature: FEATURES.FEE_CATEGORY },
   { path: 'fee-structures', element: <FeeStructurePage />, feature: FEATURES.FEE_STRUCTURE },

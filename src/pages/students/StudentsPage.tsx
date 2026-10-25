@@ -531,6 +531,9 @@ function StudentDetailDrawer({
   onDeactivate: (s: Student) => void
   onRestore: (s: Student) => void
 }) {
+  const navigate = useNavigate()
+  const { can } = usePermission()
+  const canViewFeeProfile = can(FEATURES.FEE_PROFILE, ACTIONS.VIEW)
   const activeId = propStudentId || initialStudent?.id
   const { data: detailData, isLoading } = useStudent(activeId ?? undefined)
   const student = detailData?.data ?? initialStudent
@@ -606,9 +609,14 @@ function StudentDetailDrawer({
       size={DRAWER.widthLg}
       extra={
         <Space wrap>
-          <Button icon={<WalletOutlined />} onClick={() => toast.info('Fee profile coming soon')}>
-            Fee Profile
-          </Button>
+          {canViewFeeProfile && (
+            <Button
+              icon={<WalletOutlined />}
+              onClick={() => navigate(`/accounts/fee-profiles/${student.id}`)}
+            >
+              Fee Profile
+            </Button>
+          )}
           {canUpdate && !isTerminal && transitions.length > 0 && (
             <Button icon={<SwapOutlined />} onClick={() => onStatusChange(student)}>
               Change Status

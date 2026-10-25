@@ -486,7 +486,7 @@ export default function ProgramAssignmentsPage() {
 
   const academicYearOptions = useMemo(
     () =>
-      toListArray(academicYearsRes).map((ay: { id: string; name: string; status: string }) => ({
+      toListArray<{ id: string; name: string; status: string }>(academicYearsRes).map((ay) => ({
         label: `${ay.name}${ay.status === 'CURRENT' ? ' (Current)' : ''}`,
         value: ay.id,
       })),
@@ -532,14 +532,14 @@ export default function ProgramAssignmentsPage() {
   }, [applicableFeeCategoryOptions, editingAssignment])
 
   const discountOptions = useMemo(() => {
-    return toListArray(discountsRes).map((d: { id: string; name: string; code: string; type: string; value: number }) => ({
+    return toListArray<{ id: string; name: string; code: string; type: string; value: number }>(discountsRes).map((d) => ({
       label: `${d.name} (${d.code}) — ${formatProgramValue(d.type, d.value)}`,
       value: d.id,
     }))
   }, [discountsRes])
 
   const scholarshipOptions = useMemo(() => {
-    return toListArray(scholarshipsRes).map((s: { id: string; name: string; code: string; type: string; value: number }) => ({
+    return toListArray<{ id: string; name: string; code: string; type: string; value: number }>(scholarshipsRes).map((s) => ({
       label: `${s.name} (${s.code}) — ${formatProgramValue(s.type, s.value)}`,
       value: s.id,
     }))

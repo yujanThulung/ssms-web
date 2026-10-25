@@ -79,6 +79,14 @@ export const ENDPOINTS = {
     BASE: '/sections',
     DETAIL: (id: string | number) => `/sections/${id}`,
   },
+  FEE_PROFILES: {
+    BASE: '/accounts/fee-profiles',
+    STUDENT: (studentId: string) => `/accounts/fee-profiles/students/${studentId}`,
+    EFFECTIVE_AMOUNT: (studentId: string, feeCategoryId: string) =>
+      `/accounts/fee-profiles/students/${studentId}/effective-amount/${feeCategoryId}`,
+    BILLING_SUMMARY: (frequency: string) =>
+      `/accounts/fee-profiles/billing-summary/${frequency}`,
+  },
   ADDITIONAL_FEES: {
     BASE: '/additional-fees',
     DETAIL: (id: string | number) => `/additional-fees/${id}`,

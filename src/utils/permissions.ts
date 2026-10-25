@@ -22,6 +22,7 @@ export const FEATURES = {
   DASHBOARD: 'dashboard',
   DISCOUNT_SCHOLARSHIP: 'discount_scholarship',
   PROGRAM_ASSIGNMENT: 'assignment',
+  FEE_PROFILE: 'fee_profile',
 } as const
 
 export const ACTIONS = {
