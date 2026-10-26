@@ -6,7 +6,13 @@ export type Money = string | number | null
 
 export interface FeeProfileStudent {
   id: string
+  /** Pre-joined full name (may be provided by API directly) */
   name: string
+  firstName?: string | null
+  middleName?: string | null
+  lastName?: string | null
+  /** Some endpoints return a pre-joined fullName field */
+  fullName?: string | null
   rollNumber?: string | null
   admissionNumber?: string | null
 }

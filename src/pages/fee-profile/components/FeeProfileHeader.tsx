@@ -17,6 +17,13 @@ import { FieldLabel } from './FieldLabel'
 
 const { Text, Title } = Typography
 
+/** Build the full display name from individual parts, falling back to the pre-joined name field */
+function buildFullName(student: { name: string; firstName?: string | null; middleName?: string | null; lastName?: string | null; fullName?: string | null }) {
+  if (student.fullName) return student.fullName
+  const parts = [student.firstName, student.middleName, student.lastName].filter(Boolean)
+  return parts.length > 0 ? parts.join(' ') : student.name
+}
+
 function initials(name: string) {
   return name
     .split(' ')
@@ -104,11 +111,11 @@ export function FeeProfileHeader({
                 flexShrink: 0,
               }}
             >
-              {initials(profile.student.name) || <UserOutlined />}
+              {initials(buildFullName(profile.student)) || <UserOutlined />}
             </Avatar>
             <div>
               <Title level={5} style={{ margin: 0, color: colors.text }}>
-                {profile.student.name}
+                {buildFullName(profile.student)}
               </Title>
               <Space size={6} wrap style={{ marginTop: 8 }}>
                 {profile.student.admissionNumber && (
