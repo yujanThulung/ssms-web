@@ -14,8 +14,14 @@ export const feeStructureKeys = {
   details: () => [...feeStructureKeys.all, 'detail'] as const,
   detail: (id: string | null | undefined) =>
     [...feeStructureKeys.details(), id ?? ''] as const,
+  pendingLines: (academicYearId?: string) =>
+    [...feeStructureKeys.all, 'pending-lines', academicYearId ?? ''] as const,
 }
 
 export function invalidateFeeStructures(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ queryKey: feeStructureKeys.all })
+  // Invalidate fee structures
+  queryClient.invalidateQueries({ queryKey: feeStructureKeys.all })
+  
+  // Also invalidate fee profiles since they depend on fee structure lines
+  queryClient.invalidateQueries({ queryKey: ['fee-profiles'] })
 }

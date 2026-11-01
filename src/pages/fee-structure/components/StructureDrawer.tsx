@@ -26,9 +26,11 @@ import {
   FEE_STRUCTURE_ACTION_LABEL,
   FEE_STRUCTURE_ACTION_TARGET,
   FEE_STRUCTURE_STATUS_LABEL,
+  FeeStructureStatus,
   formatMoney,
   getFrequencyLabel,
   getSubmitAction,
+  isApprovedFeeLine,
   isStructureEditable,
   sumLineTotals,
   toListArray,
@@ -71,7 +73,28 @@ export function StructureDrawer({ target, onClose, onStructureCreated }: Structu
 
   const structure = data?.data ?? null
   const status = structure?.status ?? null
-  const lines = useMemo(() => structure?.lines ?? [], [structure?.lines])
+  const allLines = useMemo(() => structure?.lines ?? [], [structure?.lines])
+
+  // While an approved structure keeps working, only approved lines are shown.
+  // A rejected structure is not active, so show its rejected lines too (they
+  // would otherwise disappear and the resubmit flow would look empty).
+  const lines = useMemo(
+    () =>
+      status === FeeStructureStatus.REJECTED
+        ? allLines
+        : allLines.filter(isApprovedFeeLine),
+    [allLines, status],
+  )
+
+  const pendingLineCount = useMemo(
+    () => allLines.filter((line) => line.status === 'PENDING_APPROVAL').length,
+    [allLines],
+  )
+  const rejectedLineCount = useMemo(
+    () => allLines.filter((line) => line.status === 'REJECTED').length,
+    [allLines],
+  )
+
   const canManage = can(FEATURES.FEE_STRUCTURE, ACTIONS.UPDATE)
   const isEditable = canManage && isStructureEditable(status)
 
@@ -97,7 +120,10 @@ export function StructureDrawer({ target, onClose, onStructureCreated }: Structu
   // status pill, so the drawer's only workflow action is the submit itself.
   const submitAction = useMemo(() => getSubmitAction(status), [status])
   const canSubmit = submitAction ? isActionAllowed(submitAction, can) : false
-  const hasNoHeads = lines.length === 0
+  // The API only requires at least one line. A rejected structure has its lines
+  // in REJECTED state, so using the "approved lines" view here would wrongly
+  // disable Resubmit.
+  const hasNoHeads = allLines.length === 0
 
   const handleCreate = async () => {
     if (!target) return
@@ -264,11 +290,22 @@ export function StructureDrawer({ target, onClose, onStructureCreated }: Structu
 
         <StatusFlow status={status} />
 
-        {isEditable && lines.length === 0 && (
+        {isEditable && hasNoHeads && (
           <Alert
             type="warning"
             showIcon
             message="Add at least one fee head before submitting for approval."
+          />
+        )}
+
+        {status === FeeStructureStatus.APPROVED && (pendingLineCount > 0 || rejectedLineCount > 0) && (
+          <Alert
+            type="warning"
+            showIcon
+            message={`${pendingLineCount} pending · ${rejectedLineCount} rejected fee head${
+              pendingLineCount + rejectedLineCount === 1 ? '' : 's'
+            }`}
+            description="These lines are not part of the active fee structure yet. Use Add Fee Head to review, edit, or remove them."
           />
         )}
 
@@ -394,7 +431,8 @@ export function StructureDrawer({ target, onClose, onStructureCreated }: Structu
         <FeeHeadsDrawer
           key={structure.id}
           structureId={structure.id}
-          lines={lines}
+          structureStatus={structure.status}
+          lines={allLines}
           categories={activeCategories}
           onClose={() => setEditorOpen(false)}
         />

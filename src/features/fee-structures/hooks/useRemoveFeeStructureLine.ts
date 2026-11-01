@@ -5,7 +5,13 @@ import type { ApiResponse } from '../../../lib/api/types'
 import { invalidateFeeStructures } from '../keys'
 import type { FeeStructure } from '../types'
 
-/** DELETE /fee-structures/:id/lines/:lineId — only valid while DRAFT. */
+/**
+ * DELETE /fee-structures/:id/lines/:lineId
+ * 
+ * Can be used on DRAFT, REJECTED, or APPROVED structures.
+ * When deleting a line from an APPROVED structure, the backend handles
+ * the approval workflow appropriately.
+ */
 export function useRemoveFeeStructureLine(structureId: string) {
   const queryClient = useQueryClient()
 

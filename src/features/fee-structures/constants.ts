@@ -109,14 +109,18 @@ export const FEE_STRUCTURE_ACTION_ENDPOINT: Record<
 }
 
 /**
- * Fee heads can be added / edited / removed while the structure is a DRAFT or a
- * REJECTED one — a rejected structure has to be revisable, otherwise the legal
- * REJECTED → PENDING_APPROVAL transition would resubmit an unchanged structure.
- * Once submitted the API rejects line mutations with 400, so the editor locks
- * rather than letting the user hit a wall.
+ * Fee heads can be added / edited / removed while the structure is a DRAFT,
+ * REJECTED, or APPROVED. When adding to an APPROVED structure, the backend
+ * creates the new line with PENDING_APPROVAL status, requiring approval before
+ * it appears in invoices. The only locked state is PENDING_APPROVAL itself,
+ * where the entire structure is under review.
  */
 export function isStructureEditable(status: FeeStructureStatus | null | undefined): boolean {
-  return status === FeeStructureStatus.DRAFT || status === FeeStructureStatus.REJECTED
+  return (
+    status === FeeStructureStatus.DRAFT ||
+    status === FeeStructureStatus.REJECTED ||
+    status === FeeStructureStatus.APPROVED
+  )
 }
 
 export function getAllowedActions(

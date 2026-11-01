@@ -178,7 +178,7 @@ export function FeesBreakdownTab({ profile }: { profile: FeeProfile }) {
 
   return (
     <Tabs
-      tabPlacement="left"
+      tabPlacement="start"
       defaultActiveKey="class"
       items={[
         {

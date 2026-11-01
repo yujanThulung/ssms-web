@@ -5,7 +5,13 @@ import type { ApiResponse } from '../../../lib/api/types'
 import { invalidateFeeStructures } from '../keys'
 import type { FeeStructure, FeeStructureLinePayload } from '../types'
 
-/** POST /fee-structures/:id/lines — only valid while the structure is DRAFT. */
+/**
+ * POST /fee-structures/:id/lines
+ * 
+ * Can be used on DRAFT, REJECTED, or APPROVED structures.
+ * When adding to an APPROVED structure, the backend creates the line
+ * with PENDING_APPROVAL status, requiring approval before it affects invoices.
+ */
 export function useAddFeeStructureLine(structureId: string) {
   const queryClient = useQueryClient()
 

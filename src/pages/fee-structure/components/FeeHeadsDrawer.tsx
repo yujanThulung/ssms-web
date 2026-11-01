@@ -9,6 +9,7 @@ import {
   Space,
   Statistic,
   Table,
+  Tag,
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -19,6 +20,7 @@ import { colors, DRAWER, radius, sizing } from '../../../lib/designTokens'
 import type { FeeCategory } from '../../../features/fee-categories'
 import {
   FEE_FREQUENCY_OPTIONS,
+  FeeStructureStatus,
   formatMoney,
   sumLineTotals,
   toNumber,
@@ -26,7 +28,7 @@ import {
   useRemoveFeeStructureLine,
   useUpdateFeeStructureLine,
 } from '../../../features/fee-structures'
-import type { FeeFrequency, FeeStructureLine } from '../../../features/fee-structures'
+import type { FeeFrequency, FeeLineStatus, FeeStructureLine } from '../../../features/fee-structures'
 
 const { Text } = Typography
 
@@ -40,12 +42,14 @@ interface EditorRow {
   feeCategoryId: string | undefined
   amount: number
   frequency: FeeFrequency
+  status?: FeeLineStatus
   originalAmount: number
   originalFrequency: FeeFrequency
 }
 
 export interface FeeHeadsDrawerProps {
   structureId: string
+  structureStatus: FeeStructureStatus
   lines: FeeStructureLine[]
   categories: FeeCategory[]
   onClose: () => void
@@ -58,12 +62,19 @@ function buildRows(lines: FeeStructureLine[]): EditorRow[] {
     feeCategoryId: line.feeCategoryId,
     amount: toNumber(line.amount),
     frequency: line.frequency,
+    status: line.status,
     originalAmount: toNumber(line.amount),
     originalFrequency: line.frequency,
   }))
 }
 
 const isBlank = (row: EditorRow) => !row.feeCategoryId && row.amount === 0
+
+const LINE_STATUS_META: Record<FeeLineStatus, { color: string; label: string }> = {
+  PENDING_APPROVAL: { color: 'warning', label: 'Pending Approval' },
+  APPROVED: { color: 'success', label: 'Approved' },
+  REJECTED: { color: 'error', label: 'Rejected' },
+}
 
 /**
  * Full-screen editor for a draft's fee heads.
@@ -74,12 +85,27 @@ const isBlank = (row: EditorRow) => !row.feeCategoryId && row.amount === 0
  */
 export function FeeHeadsDrawer({
   structureId,
+  structureStatus,
   lines,
   categories,
   onClose,
 }: FeeHeadsDrawerProps) {
   const [rows, setRows] = useState<EditorRow[]>(() => buildRows(lines))
   const [saving, setSaving] = useState(false)
+
+  const canEditApprovedLines =
+    structureStatus === FeeStructureStatus.DRAFT ||
+    structureStatus === FeeStructureStatus.REJECTED
+
+  /**
+   * On an approved structure only pending/rejected lines are mutable. On a
+   * draft/rejected structure the structure itself is under revision, so all of
+   * its lines are editable.
+   */
+  const isRowLocked = (row: EditorRow) =>
+    !canEditApprovedLines && row.id !== null && row.status === 'APPROVED'
+
+  const lockedRowCount = rows.filter(isRowLocked).length
 
   const { mutateAsync: addLine } = useAddFeeStructureLine(structureId)
   const { mutateAsync: updateLine } = useUpdateFeeStructureLine()
@@ -228,30 +254,43 @@ export function FeeHeadsDrawer({
         const usedElsewhere = rows
           .filter((other) => other.key !== row.key)
           .map((other) => other.feeCategoryId)
+        const locked = isRowLocked(row)
+        const status = row.status
+        const statusMeta =
+          status && (status !== 'APPROVED' || locked) ? LINE_STATUS_META[status] : null
+
         return (
-          <Select
-            style={{ width: '100%' }}
-            placeholder="Select fee head"
-            value={row.feeCategoryId}
-            showSearch
-            optionFilterProp="label"
-            options={categories.map((category) => ({
-              value: category.id,
-              label: `${category.name} · ${category.frequency.replace('_', ' ').toLowerCase()}`,
-              disabled: usedElsewhere.includes(category.id),
-            }))}
-            onChange={(value) => {
-              const category = categories.find((c) => c.id === value)
-              updateRow(row.key, {
-                feeCategoryId: value,
-                frequency: category?.frequency ?? row.frequency,
-                amount:
-                  row.id && row.amount === row.originalAmount
-                    ? toNumber(category?.defaultAmount ?? row.amount)
-                    : row.amount,
-              })
-            }}
-          />
+          <div>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Select fee head"
+              value={row.feeCategoryId}
+              showSearch
+              optionFilterProp="label"
+              disabled={locked}
+              options={categories.map((category) => ({
+                value: category.id,
+                label: `${category.name} · ${category.frequency.replace('_', ' ').toLowerCase()}`,
+                disabled: usedElsewhere.includes(category.id),
+              }))}
+              onChange={(value) => {
+                const category = categories.find((c) => c.id === value)
+                updateRow(row.key, {
+                  feeCategoryId: value,
+                  frequency: category?.frequency ?? row.frequency,
+                  amount:
+                    row.id && row.amount === row.originalAmount
+                      ? toNumber(category?.defaultAmount ?? row.amount)
+                      : row.amount,
+                })
+              }}
+            />
+            {statusMeta && (
+              <Tag color={statusMeta.color} style={{ marginTop: 4, fontSize: 11 }}>
+                {statusMeta.label}
+              </Tag>
+            )}
+          </div>
         )
       },
     },
@@ -266,6 +305,7 @@ export function FeeHeadsDrawer({
           style={{ width: '100%' }}
           addonBefore="Rs."
           value={row.amount}
+          disabled={isRowLocked(row)}
           onChange={(value) => updateRow(row.key, { amount: value ?? 0 })}
         />
       ),
@@ -279,6 +319,7 @@ export function FeeHeadsDrawer({
           style={{ width: '100%' }}
           value={row.frequency}
           options={FEE_FREQUENCY_OPTIONS}
+          disabled={isRowLocked(row)}
           onChange={(value) => updateRow(row.key, { frequency: value })}
         />
       ),
@@ -293,7 +334,7 @@ export function FeeHeadsDrawer({
           danger
           size="small"
           icon={<DeleteOutlined />}
-          disabled={rows.length === 1 && !isBlank(row)}
+          disabled={(rows.length === 1 && !isBlank(row)) || isRowLocked(row)}
           onClick={() => removeRow(row.key)}
           style={{ borderRadius: radius.sm }}
         />
@@ -331,6 +372,16 @@ export function FeeHeadsDrawer({
       styles={{ body: { padding: 20 } }}
     >
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+        {lockedRowCount > 0 && (
+          <Alert
+            type="info"
+            showIcon
+            message={`${lockedRowCount} approved fee head${
+              lockedRowCount === 1 ? ' is' : 's are'
+            } locked`}
+            description="Approved lines are already in use. Add a new fee head instead; new lines will be sent for approval."
+          />
+        )}
         <Text type="secondary" style={{ fontSize: 12 }}>
           {hasChanges
             ? `${addedRows.length} to add · ${changedRows.length} to update · ${removedRows.length} to remove`

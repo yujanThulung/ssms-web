@@ -80,6 +80,14 @@ export function sumLineTotals(
   return totals
 }
 
+/**
+ * Backwards compatible with responses that predate line-level approval: a line
+ * without a status is an active/approved line.
+ */
+export function isApprovedFeeLine(line: FeeStructureLine): boolean {
+  return !line.status || line.status === 'APPROVED'
+}
+
 type WireTotalKey = 'monthlyTotal' | 'termTotal' | 'yearlyTotal' | 'oneTimeTotal'
 
 function readTotals(
@@ -87,7 +95,9 @@ function readTotals(
   fallback: FeeStructureGroupedListItem['aggregateTotals'],
   lines: readonly FeeStructureLine[] | null | undefined,
 ): FeeStructureTotals {
-  const fromLines = lines ? sumLineTotals(lines) : null
+  const approvedLines =
+    primary?.status === 'REJECTED' ? lines : lines?.filter(isApprovedFeeLine)
+  const fromLines = approvedLines ? sumLineTotals(approvedLines) : null
 
   const resolve = (key: keyof FeeStructureTotals, wireKey: WireTotalKey): number => {
     const value = firstDefined<Money>(primary?.[wireKey], fallback?.[wireKey])
@@ -140,6 +150,9 @@ export function toListRow(
         : null)
 
   const lines = structure?.lines ?? null
+  const countedLines =
+    structure?.status === 'REJECTED' ? lines : lines?.filter(isApprovedFeeLine)
+  const lineCount = countedLines?.length ?? 0
   const totals = readTotals(structure, grouped.aggregateTotals, lines)
 
   const baseKey = `${academicYearId}:${classId}:${structure?.id ?? 'none'}`
@@ -153,7 +166,7 @@ export function toListRow(
     academicYearName,
     structure,
     status: structure?.status ?? null,
-    lineCount: Array.isArray(lines) ? lines.length : 0,
+    lineCount,
     studentsAssigned: toNumber(structure?.studentsAssigned),
     totals,
     createdAt: structure?.createdAt ?? null,

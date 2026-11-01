@@ -196,9 +196,9 @@ export function StatusPill({ status, onChangeStatus }: StatusPillProps) {
 }
 
 export function LockedNotice({ status }: { status: FeeStructureStatusType | null }) {
-  if (!status) return null
-  if (status === FeeStructureStatus.DRAFT || status === FeeStructureStatus.REJECTED) return null
-  if (status === FeeStructureStatus.ARCHIVED) return null
+  // Only PENDING_APPROVAL is truly locked - fee heads can be added to APPROVED structures
+  // (they'll be created with PENDING_APPROVAL status and require approval before appearing in invoices)
+  if (status !== FeeStructureStatus.PENDING_APPROVAL) return null
 
   return (
     <div

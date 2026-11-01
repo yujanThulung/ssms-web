@@ -38,6 +38,7 @@ import {
   useFeeStructureCounts,
   useFeeStructureRows,
   useFeeStructures,
+  usePendingLines,
 } from '../../../features/fee-structures'
 import type {
   FeeStructureListRow,
@@ -48,6 +49,7 @@ import { NewStructureDrawer } from '../components/NewStructureDrawer'
 import { StatusPill } from '../components/StatusFlow'
 import { StatusChangeModal } from '../../../components/common/StatusChangeModal'
 import { StructureDrawer } from '../components/StructureDrawer'
+import { PendingLinesSection } from '../components/PendingLinesSection'
 import { useFeeStructureStatusChange } from '../statusChange'
 import type { StatusChangeTarget } from '../statusChange'
 import { targetFromRow } from '../target'
@@ -122,6 +124,9 @@ export function ClassFeeStructureTab() {
   const [pendingCreate, setPendingCreate] = useState<StructureTarget | null>(null)
   const [newOpen, setNewOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
+
+  // Fetch pending lines count for the badge
+  const { count: pendingLinesCount } = usePendingLines(academicYearId || undefined)
 
 
   const listParams = useMemo(
@@ -241,7 +246,10 @@ export function ClassFeeStructureTab() {
       ...FEE_STRUCTURE_ALL_STATUSES.map((status) => ({
         key: status as StatusTabKey,
         label: FEE_STRUCTURE_STATUS_LABEL[status],
-        count: counts.byStatus[status],
+        // For PENDING_APPROVAL, add structure count + individual lines count
+        count: status === FeeStructureStatus.PENDING_APPROVAL 
+          ? counts.byStatus[status] + pendingLinesCount
+          : counts.byStatus[status],
         icon:
           status === FeeStructureStatus.APPROVED ? (
             <CheckCircleOutlined />
@@ -256,7 +264,7 @@ export function ClassFeeStructureTab() {
           ),
       })),
     ],
-    [counts],
+    [counts, pendingLinesCount],
   )
 
   const filterColumns: SmartColumn[] = useMemo(
@@ -545,7 +553,7 @@ export function ClassFeeStructureTab() {
         })}
       />
 
-      {isLoading ? (
+      {isLoading || isFetching ? (
         <div
           style={{
             backgroundColor: colors.surface,
@@ -561,7 +569,6 @@ export function ClassFeeStructureTab() {
           rowKey={(row) => row.rowKey}
           columns={columns}
           dataSource={rows}
-          loading={isFetching}
           onChange={handleTableChange}
           onRowClick={openStructure}
           pagination={{
@@ -597,6 +604,15 @@ export function ClassFeeStructureTab() {
             ),
           }}
         />
+      )}
+
+      {/* Show pending individual lines when on PENDING_APPROVAL tab. Kept
+          outside the table's loading branch so its own skeleton/updates are
+          not hidden when the structure list refetches. */}
+      {statusTab === FeeStructureStatus.PENDING_APPROVAL && (
+        <div style={{ marginTop: 24 }}>
+          <PendingLinesSection academicYearId={academicYearId || undefined} />
+        </div>
       )}
 
       <StructureDrawer

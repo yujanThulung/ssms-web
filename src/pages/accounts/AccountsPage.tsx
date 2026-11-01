@@ -1,3 +1,5 @@
+import { Navigate } from 'react-router-dom'
+
 export default function AccountsPage() {
-  return <div>Accounts</div>
+  return <Navigate to="/accounts/invoices" replace />
 }

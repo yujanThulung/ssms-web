@@ -21,11 +21,20 @@ export type FeeStructureStatus = (typeof FeeStructureStatus)[keyof typeof FeeStr
 
 // ─── Entities ─────────────────────────────────────────────────────────────────
 
+export const FeeLineStatus = {
+  PENDING_APPROVAL: 'PENDING_APPROVAL',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+} as const
+
+export type FeeLineStatus = (typeof FeeLineStatus)[keyof typeof FeeLineStatus]
+
 export interface FeeStructureLine extends BaseEntity {
   feeStructureId: string
   feeCategoryId: string
   amount: number | string
   frequency: FeeFrequency
+  status?: FeeLineStatus
   feeCategory?: FeeCategory | null
 }
 

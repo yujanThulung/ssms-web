@@ -144,7 +144,7 @@ export function BenefitsTab({ profile }: { profile: FeeProfile }) {
 
   return (
     <Tabs
-      tabPlacement="left"
+      tabPlacement="start"
       defaultActiveKey="discounts"
       items={[
         {

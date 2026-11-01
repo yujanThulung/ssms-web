@@ -28,6 +28,11 @@ export const ENDPOINTS = {
     BASE: '/accounts',
     DETAIL: (id: string | number) => `/accounts/${id}`,
   },
+  INVOICES: {
+    BASE: '/accounts/invoices',
+    DETAIL: (id: string | number) => `/accounts/invoices/${id}`,
+    CANCEL: (id: string | number) => `/accounts/invoices/${id}/cancel`,
+  },
   PROGRAM_ASSIGNMENTS: {
     BASE: '/accounts/program-assignments',
     DETAIL: (id: string) => `/accounts/program-assignments/${id}`,
@@ -53,6 +58,7 @@ export const ENDPOINTS = {
     REVIEW: (id: string | number) => `/fee-structures/${id}/review`,
     LINES: (id: string | number) => `/fee-structures/${id}/lines`,
     LINE_DETAIL: (id: string | number, lineId: string | number) => `/fee-structures/${id}/lines/${lineId}`,
+    PENDING_LINES: '/fee-structures/pending-lines',
   },
   PERMISSIONS: {
     LIST: '/permissions',

@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   GraduationCap,
-  Wallet,
   ShieldCheck,
   Settings,
   Users,
@@ -13,6 +12,7 @@ import {
   Percent,
   Award,
   ReceiptText,
+  Receipt,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { FEATURES } from '../utils'
@@ -47,7 +47,7 @@ export const people: SidebarItem[] = [
 ]
 
 export const accounts: SidebarItem[] = [
-  { title: 'Fee Collection', url: '/accounts', icon: Wallet, feature: FEATURES.ACCOUNT },
+  { title: 'Invoices', url: '/accounts/invoices', icon: Receipt, feature: FEATURES.INVOICE },
   { title: 'Fee Profiles', url: '/accounts/fee-profiles', icon: ReceiptText, feature: FEATURES.FEE_PROFILE },
   { title: 'Program Assignments', url: '/accounts/program-assignments', icon: Award, feature: FEATURES.PROGRAM_ASSIGNMENT },
   // Discounts and Scholarships live in one screen behind tabs — see FeeStructurePage.

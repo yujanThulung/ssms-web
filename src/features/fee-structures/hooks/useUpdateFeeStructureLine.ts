@@ -5,7 +5,13 @@ import type { ApiResponse } from '../../../lib/api/types'
 import { invalidateFeeStructures } from '../keys'
 import type { FeeStructure, UpdateFeeStructureLinePayload } from '../types'
 
-/** PATCH /fee-structures/:id/lines/:lineId — returns 400 unless DRAFT. */
+/**
+ * PATCH /fee-structures/:id/lines/:lineId
+ * 
+ * Can be used on DRAFT, REJECTED, or APPROVED structures.
+ * When updating a line on an APPROVED structure, the backend handles
+ * the approval workflow appropriately.
+ */
 export function useUpdateFeeStructureLine() {
   const queryClient = useQueryClient()
 

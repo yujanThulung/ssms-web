@@ -44,8 +44,10 @@ export function NewStructureDrawer({ onClose, onCreated }: NewStructureDrawerPro
 
       const created = response?.data
       if (created?.status && created.status !== 'DRAFT') {
+        // This case should no longer happen after the backend fix, but keep it
+        // as a safe fallback so the UI always shows something sensible.
         toast.info(
-          `This class already has a ${FEE_STRUCTURE_STATUS_LABEL[created.status].toLowerCase()} fee structure — opening it.`,
+          `Opened the existing ${FEE_STRUCTURE_STATUS_LABEL[created.status].toLowerCase()} fee structure.`,
         )
       } else {
         toast.success('Draft fee structure created')

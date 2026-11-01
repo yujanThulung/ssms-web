@@ -31,6 +31,7 @@ import { BenefitsTab } from './components/BenefitsTab'
 import { CalculationTab } from './components/CalculationTab'
 import { BillingPeriodsTab } from './components/BillingPeriodsTab'
 import { EffectiveAmountTab } from './components/EffectiveAmountTab'
+import { StudentInvoicesTab } from './components/StudentInvoicesTab'
 
 export default function FeeProfileDetail({ studentId }: { studentId: string }) {
   const navigate = useNavigate()
@@ -206,6 +207,16 @@ export default function FeeProfileDetail({ studentId }: { studentId: string }) {
                 key: 'billing',
                 label: 'Billing Periods',
                 children: <BillingPeriodsTab key={profile.academicYear.id} profile={profile} />,
+              },
+              {
+                key: 'invoices',
+                label: 'Invoices & Receipts',
+                children: (
+                  <StudentInvoicesTab
+                    profile={profile}
+                    academicYearId={academicYearId || undefined}
+                  />
+                ),
               },
             ]}
           />

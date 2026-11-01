@@ -1,8 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Spin } from 'antd'
-import { NuqsAdapter } from 'nuqs/adapters/react-router'
-
+import { NuqsAdapter } from "nuqs/adapters/react-router/v7";
 import DashboardLayout from '../layouts/DashboardLayout'
 import LoginPage from '../pages/login/LoginPage'
 import { useAuth } from '../context/AuthContext'
@@ -14,6 +13,8 @@ const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage'))
 const StudentsPage = lazy(() => import('../pages/students/StudentsPage'))
 const UsersPage = lazy(() => import('../pages/users/Users'))
 const AccountsPage = lazy(() => import('../pages/accounts/AccountsPage'))
+const InvoicesPage = lazy(() => import('../pages/accounts/invoices/InvoicesPage'))
+const InvoiceDetailPage = lazy(() => import('../pages/accounts/invoices/InvoiceDetailPage'))
 const ProgramAssignmentsPage = lazy(() => import('../pages/program-assignments/ProgramAssignmentsPage'))
 const FeeProfilePage = lazy(() => import('../pages/fee-profile/FeeProfilePage'))
 const PermissionsPage = lazy(() => import('../pages/permissions/PermissionsPage'))
@@ -33,6 +34,9 @@ const protectedRoutes = [
   { path: 'students/:id', element: <StudentsPage />, feature: FEATURES.STUDENT },
   { path: 'users', element: <UsersPage />, feature: FEATURES.USER },
   { path: 'accounts', element: <AccountsPage />, feature: FEATURES.ACCOUNT },
+  { path: 'accounts/invoices', element: <InvoicesPage />, feature: FEATURES.INVOICE },
+  { path: 'accounts/invoices/:id', element: <InvoiceDetailPage />, feature: FEATURES.INVOICE },
+  { path: 'invoices', element: <Navigate to="/accounts/invoices" replace /> },
   { path: 'accounts/fee-profiles', element: <FeeProfilePage />, feature: FEATURES.FEE_PROFILE },
   { path: 'accounts/fee-profiles/:studentId', element: <FeeProfilePage />, feature: FEATURES.FEE_PROFILE },
   { path: 'accounts/program-assignments', element: <ProgramAssignmentsPage />, feature: FEATURES.PROGRAM_ASSIGNMENT },
