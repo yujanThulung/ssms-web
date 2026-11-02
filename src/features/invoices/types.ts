@@ -23,6 +23,14 @@ export interface InvoiceFeeCategory {
   code: string
 }
 
+export interface InvoiceAdjustment {
+  adjustmentType: string
+  programName: string
+  programValueType: string
+  programValue: string | number
+  appliedAmount: string | number
+}
+
 export interface InvoiceLine {
   id: string
   feeCategory: InvoiceFeeCategory
@@ -36,7 +44,7 @@ export interface InvoiceLine {
   quantity: number
   lineTotal: string | number
   remarks?: string | null
-  adjustments?: unknown[]
+  adjustments?: InvoiceAdjustment[]
 }
 
 export interface InvoiceStudent {
@@ -133,6 +141,16 @@ export interface InvoiceStats {
   paidAmount: number
   outstandingAmount: number
   overdueCount: number
+}
+
+export interface GeneratePdfResponse {
+  invoiceId?: string
+  invoiceNumber?: string
+  pdfUrl: string
+  pdfSecureUrl?: string
+  publicId: string
+  bytes: number
+  uploadedAt?: string
 }
 
 /** Check if invoice is eligible for cancellation according to business rules */

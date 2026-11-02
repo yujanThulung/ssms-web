@@ -12,6 +12,8 @@ import {
   Tag,
   Skeleton,
   Card,
+  Dropdown,
+  message,
 } from 'antd'
 import {
   ArrowLeft,
@@ -20,6 +22,9 @@ import {
   User,
   Calendar,
   AlertTriangle,
+  Download,
+  FileText,
+  ChevronDown,
 } from 'lucide-react'
 import { colors } from '../../../lib/designTokens'
 import { formatMoney } from '../../../features/fee-structures'
@@ -29,6 +34,8 @@ import { PageHeader } from '../../../components/common/PageHeader'
 import {
   useInvoice,
   canCancelInvoice,
+  useDownloadInvoicePdf,
+  useGenerateInvoicePdf,
   type InvoiceLine,
 } from '../../../features/invoices'
 import { InvoiceStatusTag } from './components/InvoiceStatusTag'
@@ -46,10 +53,44 @@ export default function InvoiceDetailPage() {
   const [printModalOpen, setPrintModalOpen] = useState(false)
 
   const { data: invoice, isLoading, refetch } = useInvoice(id)
+  const { mutateAsync: downloadPdf, isPending: isDownloading } = useDownloadInvoicePdf()
+  const { mutateAsync: generatePdf, isPending: isGenerating } = useGenerateInvoicePdf()
 
   const canCancel =
     (can(FEATURES.INVOICE, ACTIONS.DELETE) || can(FEATURES.INVOICE, ACTIONS.CANCEL)) &&
     canCancelInvoice(invoice)
+
+  const handleDownloadPdf = async () => {
+    if (!invoice) return
+
+    try {
+      await downloadPdf({
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+      })
+      message.success('Invoice PDF downloaded successfully')
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : 'Failed to download invoice PDF'
+      )
+    }
+  }
+
+  const handleGeneratePdf = async () => {
+    if (!invoice) return
+
+    try {
+      const result = await generatePdf(invoice.id)
+      message.success('PDF generated and uploaded to cloud storage')
+      
+      // Open the PDF in a new tab
+      window.open(result.pdfUrl, '_blank')
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : 'Failed to generate invoice PDF'
+      )
+    }
+  }
 
   const lineColumns = [
     {
@@ -171,20 +212,50 @@ export default function InvoiceDetailPage() {
           invoice && (
             <Space>
               <Button
+                icon={<Download size={15} />}
+                onClick={handleDownloadPdf}
+                loading={isDownloading}
+              >
+                Download PDF
+              </Button>
+              <Button
                 icon={<Printer size={15} />}
                 onClick={() => setPrintModalOpen(true)}
               >
-                Print Invoice
+                Print
               </Button>
-              {canCancel && (
-                <Button
-                  danger
-                  icon={<XCircle size={15} />}
-                  onClick={() => setCancelModalOpen(true)}
-                >
-                  Cancel Invoice
+              <Dropdown
+                menu={{
+                  items: [
+                    {
+                      key: 'generate',
+                      label: 'Generate & Upload to Cloud',
+                      icon: <FileText size={15} />,
+                      onClick: handleGeneratePdf,
+                      disabled: isDownloading || isGenerating,
+                    },
+                    ...(canCancel
+                      ? [
+                          {
+                            type: 'divider' as const,
+                          },
+                          {
+                            key: 'cancel',
+                            label: 'Cancel Invoice',
+                            danger: true,
+                            icon: <XCircle size={15} />,
+                            onClick: () => setCancelModalOpen(true),
+                          },
+                        ]
+                      : []),
+                  ],
+                }}
+                trigger={['click']}
+              >
+                <Button loading={isGenerating}>
+                  More <ChevronDown size={14} style={{ marginLeft: 4 }} />
                 </Button>
-              )}
+              </Dropdown>
             </Space>
           )
         }

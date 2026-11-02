@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Button, Space, Typography, Tooltip, Empty, Row, Col } from 'antd'
+import { Button, Space, Typography, Tooltip, Empty, Row, Col, Dropdown, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
   Receipt,
@@ -11,6 +11,8 @@ import {
   Wallet,
   CheckCircle2,
   Clock,
+  Download,
+  MoreVertical,
 } from 'lucide-react'
 import { colors } from '../../../lib/designTokens'
 import { usePermission } from '../../../context/PermissionContext'
@@ -22,6 +24,7 @@ import { formatMoney, toListArray } from '../../../features/fee-structures'
 import {
   useInvoices,
   canCancelInvoice,
+  useDownloadInvoicePdf,
   type Invoice,
 } from '../../../features/invoices'
 import type { FeeProfile } from '../../../features/fee-profile'
@@ -54,6 +57,22 @@ export function StudentInvoicesTab({ profile, academicYearId }: StudentInvoicesT
     academicYearId: academicYearId || profile.academicYear.id,
     limit: 50,
   })
+
+  const { mutateAsync: downloadPdf, isPending: isDownloading } = useDownloadInvoicePdf()
+
+  const handleDownloadPdf = async (invoice: Invoice) => {
+    try {
+      await downloadPdf({
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+      })
+      message.success('Invoice PDF downloaded successfully')
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : 'Failed to download invoice PDF'
+      )
+    }
+  }
 
   const invoices = useMemo<Invoice[]>(() => {
     return toListArray<Invoice>(invoicesRes)
@@ -216,25 +235,46 @@ export function StudentInvoicesTab({ profile, academicYearId }: StudentInvoicesT
                 onClick={() => setDetailDrawerInvoiceId(record.id)}
               />
             </Tooltip>
-            <Tooltip title="Print receipt">
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: 'download',
+                    label: 'Download PDF',
+                    icon: <Download size={15} />,
+                    onClick: () => handleDownloadPdf(record),
+                  },
+                  {
+                    key: 'print',
+                    label: 'Print Invoice',
+                    icon: <Printer size={15} />,
+                    onClick: () => setPrintModalInvoice(record),
+                  },
+                  ...(eligibleForCancel
+                    ? [
+                        {
+                          type: 'divider' as const,
+                        },
+                        {
+                          key: 'cancel',
+                          label: 'Cancel Invoice',
+                          icon: <XCircle size={15} />,
+                          danger: true,
+                          onClick: () => setCancelModalInvoice(record),
+                        },
+                      ]
+                    : []),
+                ],
+              }}
+              trigger={['click']}
+            >
               <Button
                 type="text"
                 size="small"
-                icon={<Printer size={15} color={colors.secondaryText} />}
-                onClick={() => setPrintModalInvoice(record)}
+                icon={<MoreVertical size={15} color={colors.secondaryText} />}
+                loading={isDownloading}
               />
-            </Tooltip>
-            {eligibleForCancel && (
-              <Tooltip title="Cancel invoice">
-                <Button
-                  type="text"
-                  size="small"
-                  danger
-                  icon={<XCircle size={15} />}
-                  onClick={() => setCancelModalInvoice(record)}
-                />
-              </Tooltip>
-            )}
+            </Dropdown>
           </Space>
         )
       },

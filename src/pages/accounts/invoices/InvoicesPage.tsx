@@ -27,6 +27,7 @@ import {
   Wallet,
   CheckCircle2,
   Clock,
+  FileText,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { colors } from '../../../lib/designTokens'
@@ -45,6 +46,8 @@ import { useSections } from '../../../features/sections'
 import {
   useInvoices,
   canCancelInvoice,
+  useDownloadInvoicePdf,
+  useGenerateInvoicePdf,
   type Invoice,
   type InvoiceListParams,
 } from '../../../features/invoices'
@@ -77,6 +80,38 @@ export default function InvoicesPage() {
   const [detailDrawerInvoiceId, setDetailDrawerInvoiceId] = useState<string | null>(null)
   const [cancelModalInvoice, setCancelModalInvoice] = useState<Invoice | null>(null)
   const [printModalInvoice, setPrintModalInvoice] = useState<Invoice | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [generatingId, setGeneratingId] = useState<string | null>(null)
+
+  const { mutateAsync: downloadPdf } = useDownloadInvoicePdf()
+  const { mutateAsync: generatePdf } = useGenerateInvoicePdf()
+
+  const handleDownloadInvoice = async (inv: Invoice) => {
+    try {
+      setDownloadingId(inv.id)
+      await downloadPdf({ invoiceId: inv.id, invoiceNumber: inv.invoiceNumber })
+      toast.success(`Invoice ${inv.invoiceNumber} PDF downloaded`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to download invoice PDF')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
+  const handleGenerateInvoicePdf = async (inv: Invoice) => {
+    try {
+      setGeneratingId(inv.id)
+      const res = await generatePdf(inv.id)
+      toast.success('Invoice PDF generated and uploaded to cloud')
+      if (res.pdfUrl) {
+        window.open(res.pdfUrl, '_blank', 'noopener,noreferrer')
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to generate cloud PDF')
+    } finally {
+      setGeneratingId(null)
+    }
+  }
 
   // ── Filter Lookups ─────────────────────────────────────────────────────────
   const { data: yearsData } = useAcademicYears({ limit: 50 })
@@ -506,6 +541,20 @@ export default function InvoicesPage() {
             onClick: () => setDetailDrawerInvoiceId(record.id),
           },
           {
+            key: 'download',
+            label: 'Download PDF',
+            icon: <Download size={14} />,
+            disabled: downloadingId === record.id,
+            onClick: () => handleDownloadInvoice(record),
+          },
+          {
+            key: 'generate-pdf',
+            label: 'Generate & Upload to Cloud',
+            icon: <FileText size={14} />,
+            disabled: generatingId === record.id,
+            onClick: () => handleGenerateInvoicePdf(record),
+          },
+          {
             key: 'print',
             label: 'Print Invoice',
             icon: <Printer size={14} />,
@@ -535,6 +584,15 @@ export default function InvoicesPage() {
                 size="small"
                 icon={<Eye size={15} color={colors.secondaryText} />}
                 onClick={() => setDetailDrawerInvoiceId(record.id)}
+              />
+            </Tooltip>
+            <Tooltip title="Download PDF">
+              <Button
+                type="text"
+                size="small"
+                loading={downloadingId === record.id}
+                icon={<Download size={15} color={colors.secondaryText} />}
+                onClick={() => handleDownloadInvoice(record)}
               />
             </Tooltip>
             <Tooltip title="Print invoice receipt">

@@ -32,6 +32,8 @@ export const ENDPOINTS = {
     BASE: '/accounts/invoices',
     DETAIL: (id: string | number) => `/accounts/invoices/${id}`,
     CANCEL: (id: string | number) => `/accounts/invoices/${id}/cancel`,
+    PDF: (id: string | number) => `/accounts/invoices/${id}/pdf`,
+    GENERATE_PDF: (id: string | number) => `/accounts/invoices/${id}/generate-pdf`,
   },
   PROGRAM_ASSIGNMENTS: {
     BASE: '/accounts/program-assignments',
