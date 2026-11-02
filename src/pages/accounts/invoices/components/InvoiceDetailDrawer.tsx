@@ -43,7 +43,6 @@ export function InvoiceDetailDrawer({
   const { can } = usePermission()
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [printModalOpen, setPrintModalOpen] = useState(false)
-  const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const { data: invoice, isLoading, refetch } = useInvoice(invoiceId || undefined, open)
@@ -72,6 +71,7 @@ export function InvoiceDetailDrawer({
       await downloadPdf({
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
+        pdfUrl: invoice.pdfUrl,
       })
       message.success('Invoice PDF downloaded successfully')
     } catch (error) {
@@ -82,20 +82,15 @@ export function InvoiceDetailDrawer({
   const handleGeneratePdf = async () => {
     if (!invoice) return
     try {
-      const result = await generatePdf(invoice.id)
-      setGeneratedPdfUrl(result.pdfUrl)
+      await generatePdf(invoice.id)
+      await refetch()
       message.success({
-        content: 'PDF generated and uploaded to Cloudinary successfully',
+        content: 'Invoice PDF regenerated successfully',
         duration: 3,
       })
+      setPrintModalOpen(true)
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Failed to generate and upload PDF')
-    }
-  }
-
-  const handleViewCloudinaryPdf = () => {
-    if (generatedPdfUrl) {
-      window.open(generatedPdfUrl, '_blank', 'noopener,noreferrer')
+      message.error(error instanceof Error ? error.message : 'Failed to regenerate PDF')
     }
   }
 
@@ -133,16 +128,27 @@ export function InvoiceDetailDrawer({
 
             {invoice && (
               <Space>
-                <Button
-                  size="small"
-                  icon={<ExternalLink size={13} />}
-                  onClick={() => {
-                    onClose()
-                    navigate(`/accounts/invoices/${invoice.id}`)
-                  }}
-                >
-                  Full Page
-                </Button>
+                <Space>
+                  {invoice.pdfUrl && (
+                    <Button
+                      size="small"
+                      icon={<Eye size={13} />}
+                      onClick={() => window.open(invoice.pdfUrl!, '_blank', 'noopener,noreferrer')}
+                    >
+                      View PDF
+                    </Button>
+                  )}
+                  <Button
+                    size="small"
+                    icon={<ExternalLink size={13} />}
+                    onClick={() => {
+                      onClose()
+                      navigate(`/accounts/invoices/${invoice.id}`)
+                    }}
+                  >
+                    Full Page
+                  </Button>
+                </Space>
                 <Dropdown
                   menu={{
                     items: [
@@ -154,20 +160,10 @@ export function InvoiceDetailDrawer({
                       },
                       {
                         key: 'generate',
-                        label: 'Generate & Upload to Cloud',
+                        label: 'Regenerate PDF',
                         icon: <Upload size={13} />,
                         onClick: handleGeneratePdf,
                       },
-                      ...(generatedPdfUrl
-                        ? [
-                            {
-                              key: 'view',
-                              label: 'View Cloud PDF',
-                              icon: <Eye size={13} />,
-                              onClick: handleViewCloudinaryPdf,
-                            },
-                          ]
-                        : []),
                       {
                         type: 'divider' as const,
                       },

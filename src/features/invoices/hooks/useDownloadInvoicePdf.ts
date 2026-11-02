@@ -5,14 +5,46 @@ import { ENDPOINTS } from '../../../lib/api/endpoints'
 interface DownloadPdfParams {
   invoiceId: string
   invoiceNumber: string
+  pdfUrl?: string | null
+  inline?: boolean
 }
 
 export function useDownloadInvoicePdf() {
   return useMutation<void, Error, DownloadPdfParams>({
-    mutationFn: async ({ invoiceId, invoiceNumber }) => {
+    mutationFn: async ({ invoiceId, invoiceNumber, pdfUrl, inline = false }) => {
+      // If PDF URL already exists in Cloudinary, download from there
+      if (pdfUrl) {
+        try {
+          const response = await fetch(pdfUrl)
+          if (!response.ok) {
+            throw new Error('Failed to fetch PDF from cloud storage')
+          }
+          
+          const blob = await response.blob()
+          const url = window.URL.createObjectURL(blob)
+          
+          const link = document.createElement('a')
+          link.href = url
+          const cleanNumber = invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, '_')
+          link.download = `Invoice_${cleanNumber}.pdf`
+          document.body.appendChild(link)
+          link.click()
+          
+          // Cleanup
+          document.body.removeChild(link)
+          window.URL.revokeObjectURL(url)
+          return
+        } catch (err) {
+          // If cloud download fails, fall back to backend generation
+          console.warn('Failed to download from cloud, falling back to backend:', err)
+        }
+      }
+
+      // Generate PDF from backend (first time or if cloud download failed)
       try {
         const response = await client.get(ENDPOINTS.INVOICES.PDF(invoiceId), {
           responseType: 'blob',
+          params: inline ? { inline: 'true' } : undefined,
         })
 
         // Check if response is an error JSON disguised as blob

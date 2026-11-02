@@ -82,6 +82,7 @@ export default function InvoicesPage() {
   const [printModalInvoice, setPrintModalInvoice] = useState<Invoice | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
+  const [printingId, setPrintingId] = useState<string | null>(null)
 
   const { mutateAsync: downloadPdf } = useDownloadInvoicePdf()
   const { mutateAsync: generatePdf } = useGenerateInvoicePdf()
@@ -89,7 +90,7 @@ export default function InvoicesPage() {
   const handleDownloadInvoice = async (inv: Invoice) => {
     try {
       setDownloadingId(inv.id)
-      await downloadPdf({ invoiceId: inv.id, invoiceNumber: inv.invoiceNumber })
+      await downloadPdf({ invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, pdfUrl: inv.pdfUrl })
       toast.success(`Invoice ${inv.invoiceNumber} PDF downloaded`)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to download invoice PDF')
@@ -98,16 +99,65 @@ export default function InvoicesPage() {
     }
   }
 
+  const handleViewInvoice = (inv: Invoice) => {
+    // Directly trigger print instead of showing modal
+    handlePrintInvoice(inv)
+  }
+
+  const handlePrintInvoice = async (inv: Invoice) => {
+    setPrintingId(inv.id)
+    try {
+      // Dynamically import the client and endpoints
+      const client = (await import('../../../lib/api/client')).default
+      const { ENDPOINTS } = await import('../../../lib/api/endpoints')
+      
+      // Fetch PDF from backend
+      const response = await client.get(ENDPOINTS.INVOICES.PDF(inv.id), {
+        responseType: 'blob',
+        params: { print: 'true', inline: 'true' },
+      })
+      
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      
+      // Create hidden iframe and trigger print
+      const iframe = document.createElement('iframe')
+      iframe.style.position = 'fixed'
+      iframe.style.right = '0'
+      iframe.style.bottom = '0'
+      iframe.style.width = '0'
+      iframe.style.height = '0'
+      iframe.style.border = 'none'
+      document.body.appendChild(iframe)
+      
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus()
+          iframe.contentWindow?.print()
+        } catch (err) {
+          console.error('Print error:', err)
+        }
+        setTimeout(() => {
+          document.body.removeChild(iframe)
+          window.URL.revokeObjectURL(url)
+          setPrintingId(null)
+        }, 1000)
+      }
+      
+      iframe.src = url
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to open print dialog')
+      setPrintingId(null)
+    }
+  }
+
   const handleGenerateInvoicePdf = async (inv: Invoice) => {
     try {
       setGeneratingId(inv.id)
-      const res = await generatePdf(inv.id)
-      toast.success('Invoice PDF generated and uploaded to cloud')
-      if (res.pdfUrl) {
-        window.open(res.pdfUrl, '_blank', 'noopener,noreferrer')
-      }
+      await generatePdf(inv.id)
+      toast.success('Invoice PDF regenerated successfully')
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to generate cloud PDF')
+      toast.error(err instanceof Error ? err.message : 'Failed to regenerate PDF')
     } finally {
       setGeneratingId(null)
     }
@@ -536,9 +586,25 @@ export default function InvoicesPage() {
         const menuItems = [
           {
             key: 'view',
-            label: 'View Breakdown',
+            label: 'Quick Print',
             icon: <Eye size={14} />,
+            disabled: printingId === record.id,
+            onClick: () => handleViewInvoice(record),
+          },
+          {
+            key: 'print-modal',
+            label: 'View Print Modal',
+            icon: <Printer size={14} />,
+            onClick: () => setPrintModalInvoice(record),
+          },
+          {
+            key: 'details',
+            label: 'Full Details',
+            icon: <FileText size={14} />,
             onClick: () => setDetailDrawerInvoiceId(record.id),
+          },
+          {
+            type: 'divider' as const,
           },
           {
             key: 'download',
@@ -549,16 +615,10 @@ export default function InvoicesPage() {
           },
           {
             key: 'generate-pdf',
-            label: 'Generate & Upload to Cloud',
+            label: 'Regenerate PDF',
             icon: <FileText size={14} />,
             disabled: generatingId === record.id,
             onClick: () => handleGenerateInvoicePdf(record),
-          },
-          {
-            key: 'print',
-            label: 'Print Invoice',
-            icon: <Printer size={14} />,
-            onClick: () => setPrintModalInvoice(record),
           },
           ...(eligibleForCancel
             ? [
@@ -578,12 +638,13 @@ export default function InvoicesPage() {
 
         return (
           <Space onClick={(e) => e.stopPropagation()}>
-            <Tooltip title="View details">
+            <Tooltip title={printingId === record.id ? "Loading..." : "Quick print"}>
               <Button
                 type="text"
                 size="small"
+                loading={printingId === record.id}
                 icon={<Eye size={15} color={colors.secondaryText} />}
-                onClick={() => setDetailDrawerInvoiceId(record.id)}
+                onClick={() => handleViewInvoice(record)}
               />
             </Tooltip>
             <Tooltip title="Download PDF">
@@ -595,7 +656,7 @@ export default function InvoicesPage() {
                 onClick={() => handleDownloadInvoice(record)}
               />
             </Tooltip>
-            <Tooltip title="Print invoice receipt">
+            <Tooltip title="View modal">
               <Button
                 type="text"
                 size="small"
@@ -729,7 +790,7 @@ export default function InvoicesPage() {
             total: paginationMeta.total,
           }}
           onChange={handleTableChange}
-          onRowClick={(record) => setDetailDrawerInvoiceId(record.id)}
+          onRowClick={(record) => handleViewInvoice(record)}
           loading={isFetching}
         />
       )}
@@ -740,7 +801,7 @@ export default function InvoicesPage() {
         onClose={() => setCreateModalOpen(false)}
         onSuccess={(created) => {
           refetch()
-          setDetailDrawerInvoiceId(created.id)
+          handleViewInvoice(created as Invoice)
         }}
       />
 

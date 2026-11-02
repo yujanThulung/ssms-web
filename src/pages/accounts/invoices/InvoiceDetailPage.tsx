@@ -67,6 +67,7 @@ export default function InvoiceDetailPage() {
       await downloadPdf({
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
+        pdfUrl: invoice.pdfUrl,
       })
       message.success('Invoice PDF downloaded successfully')
     } catch (error) {
@@ -80,14 +81,13 @@ export default function InvoiceDetailPage() {
     if (!invoice) return
 
     try {
-      const result = await generatePdf(invoice.id)
-      message.success('PDF generated and uploaded to cloud storage')
-      
-      // Open the PDF in a new tab
-      window.open(result.pdfUrl, '_blank')
+      await generatePdf(invoice.id)
+      message.success('Invoice PDF regenerated successfully')
+      await refetch()
+      setPrintModalOpen(true)
     } catch (error) {
       message.error(
-        error instanceof Error ? error.message : 'Failed to generate invoice PDF'
+        error instanceof Error ? error.message : 'Failed to regenerate invoice PDF'
       )
     }
   }
@@ -219,17 +219,18 @@ export default function InvoiceDetailPage() {
                 Download PDF
               </Button>
               <Button
+                type="primary"
                 icon={<Printer size={15} />}
                 onClick={() => setPrintModalOpen(true)}
               >
-                Print
+                Print Invoice
               </Button>
               <Dropdown
                 menu={{
                   items: [
                     {
                       key: 'generate',
-                      label: 'Generate & Upload to Cloud',
+                      label: 'Regenerate PDF',
                       icon: <FileText size={15} />,
                       onClick: handleGeneratePdf,
                       disabled: isDownloading || isGenerating,

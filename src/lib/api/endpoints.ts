@@ -33,7 +33,8 @@ export const ENDPOINTS = {
     DETAIL: (id: string | number) => `/accounts/invoices/${id}`,
     CANCEL: (id: string | number) => `/accounts/invoices/${id}/cancel`,
     PDF: (id: string | number) => `/accounts/invoices/${id}/pdf`,
-    GENERATE_PDF: (id: string | number) => `/accounts/invoices/${id}/generate-pdf`,
+    PDF_INFO: (id: string | number) => `/accounts/invoices/${id}/pdf-info`,
+    GENERATE_PDF: (id: string | number) => `/accounts/invoices/${id}/regenerate-pdf`,
   },
   PROGRAM_ASSIGNMENTS: {
     BASE: '/accounts/program-assignments',

@@ -103,6 +103,9 @@ export interface Invoice extends Partial<BaseEntity> {
   cancelledBy?: InvoiceUserRef
   cancelledAt?: string
   cancellationReason?: string
+  pdfUrl?: string | null
+  pdfPublicId?: string | null
+  pdfGeneratedAt?: string | null
   createdAt: string
   updatedAt: string
 }

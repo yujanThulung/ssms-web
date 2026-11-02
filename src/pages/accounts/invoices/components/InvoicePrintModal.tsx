@@ -33,9 +33,42 @@ export function InvoicePrintModal({
     if (!invoice) return
     setIsPrinting(true)
     try {
-      await printInvoice(invoice, schoolLogo)
+      // Always print from backend-generated PDF for consistency
+      const client = (await import('../../../../lib/api/client')).default
+      const { ENDPOINTS } = await import('../../../../lib/api/endpoints')
+      const response = await client.get(ENDPOINTS.INVOICES.PDF(invoice.id), {
+        responseType: 'blob',
+        params: { print: 'true', inline: 'true' },
+      })
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const iframe = document.createElement('iframe')
+      iframe.style.position = 'fixed'
+      iframe.style.right = '0'
+      iframe.style.bottom = '0'
+      iframe.style.width = '0'
+      iframe.style.height = '0'
+      iframe.style.border = 'none'
+      document.body.appendChild(iframe)
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus()
+          iframe.contentWindow?.print()
+        } catch {
+          // ignore
+        }
+        setTimeout(() => {
+          document.body.removeChild(iframe)
+          window.URL.revokeObjectURL(url)
+        }, 1000)
+      }
+      iframe.src = url
     } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : 'Failed to open print dialog')
+      try {
+        await printInvoice(invoice, schoolLogo)
+      } catch {
+        message.error(err instanceof Error ? err.message : 'Failed to open print dialog')
+      }
     } finally {
       setIsPrinting(false)
     }
@@ -60,6 +93,7 @@ export function InvoicePrintModal({
       await downloadPdf({
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
+        pdfUrl: invoice.pdfUrl,
       })
       message.success('Invoice PDF downloaded successfully')
     } catch (err: unknown) {
@@ -90,7 +124,7 @@ export function InvoicePrintModal({
       title={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Printer size={18} color={colors.primary} />
-          <span style={{ fontWeight: 600 }}>Print Invoice: {invoice.invoiceNumber}</span>
+          <span style={{ fontWeight: 600 }}>Print Invoice</span>
         </div>
       }
       footer={
@@ -114,7 +148,7 @@ export function InvoicePrintModal({
               loading={isPrinting}
               style={{ backgroundColor: colors.primary, borderColor: colors.primary }}
             >
-              Print Invoice
+              Print
             </Button>
           </Space>
         </div>
