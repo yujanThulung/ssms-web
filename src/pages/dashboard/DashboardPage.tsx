@@ -43,7 +43,7 @@ import { formatMoney } from '../../features/fee-structures'
 import { useAcademicYears, type AcademicYear } from '../../features/academic-years'
 import { useDashboard, type DashboardData } from '../../features/dashboard'
 import { usePermission } from '../../context/PermissionContext'
-import { FEATURES, ACTIONS } from '../../utils/permissions'
+import { FEATURES, ACTIONS, ROLES } from '../../utils/permissions'
 import { colors, radius, shadow } from '../../lib/designTokens'
 import {
   ChartSwitch,
@@ -373,9 +373,10 @@ export default function DashboardPage() {
   const { data: yearsResponse, isLoading: yearsLoading } = useAcademicYears({ limit: 100 })
   const years = useMemo<AcademicYear[]>(() => yearsResponse?.data ?? [], [yearsResponse])
   const navigate = useNavigate()
-  const { can } = usePermission()
-  const canViewDashboard = can(FEATURES.INVOICE, ACTIONS.VIEW)
-  const canCreateInvoice = can(FEATURES.INVOICE, ACTIONS.CREATE)
+  const { can, isSuperAdmin, hasRole } = usePermission()
+  const isAdmin = isSuperAdmin || hasRole(ROLES.ADMIN, ROLES.SUPER_ADMIN, 'ADMIN', 'SUPER_ADMIN')
+  const canViewDashboard = isAdmin || can(FEATURES.DASHBOARD, ACTIONS.VIEW) || can(FEATURES.INVOICE, ACTIONS.VIEW) || can(FEATURES.STUDENT, ACTIONS.VIEW)
+  const canCreateInvoice = isAdmin || can(FEATURES.INVOICE, ACTIONS.CREATE)
   const { data, isLoading, isFetching, error, refetch } = useDashboard(academicYearId || undefined, canViewDashboard)
   const selectedSessionId = academicYearId || data?.academicSession.id
 
@@ -400,7 +401,23 @@ export default function DashboardPage() {
       </Space>}
     />
 
-    {!canViewDashboard ? <Alert type="warning" showIcon message="Dashboard access requires invoice viewing permission." /> : error ? <Alert type="error" showIcon message="Could not load dashboard data" description={error.message} action={<Button size="small" onClick={() => refetch()}>Retry</Button>} style={{ marginBottom: 16 }} /> : null}
+    {!canViewDashboard ? (
+      <Alert
+        type="warning"
+        showIcon
+        message="Dashboard access requires dashboard or invoice viewing permission."
+        style={{ marginBottom: 16 }}
+      />
+    ) : error ? (
+      <Alert
+        type="error"
+        showIcon
+        message="Could not load dashboard data"
+        description={error.message}
+        action={<Button size="small" onClick={() => refetch()}>Retry</Button>}
+        style={{ marginBottom: 16 }}
+      />
+    ) : null}
     {canViewDashboard && !error && <DashboardContent data={data} loading={isLoading || isFetching && !data} />}
   </div>
 }

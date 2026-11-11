@@ -51,6 +51,11 @@ export function isSuperAdmin(user: AuthUser | null): boolean {
   return user?.role?.name === ROLES.SUPER_ADMIN
 }
 
+/** Check if user is Admin or Super Admin */
+export function isAdmin(user: AuthUser | null): boolean {
+  return user?.role?.name === ROLES.ADMIN || user?.role?.name === ROLES.SUPER_ADMIN
+}
+
 /** Check if user has ANY of the specified roles */
 export function hasRole(user: AuthUser | null, ...roles: string[]): boolean {
   if (!user?.role?.name) return false
@@ -59,6 +64,7 @@ export function hasRole(user: AuthUser | null, ...roles: string[]): boolean {
 
 /** Accepts legacy/alternate feature names for the same capability. */
 const FEATURE_ALIASES: Record<string, string[]> = {
+  [FEATURES.DASHBOARD]: [FEATURES.DASHBOARD, 'dashboard', 'overview', 'invoice', 'invoices', 'account', 'student'],
   [FEATURES.PROGRAM_ASSIGNMENT]: [FEATURES.PROGRAM_ASSIGNMENT, 'program_assignment'],
   [FEATURES.INVOICE]: [FEATURES.INVOICE, 'account', 'accounts', 'invoice', 'invoices'],
   [FEATURES.ACCOUNT]: [FEATURES.ACCOUNT, 'invoice', 'invoices', 'account', 'accounts'],
@@ -74,6 +80,13 @@ export function hasPermission(
   if (!user) return false;
 
   if (isSuperAdmin(user)) return true;
+
+  // Admin users have full dashboard & management access
+  if (user?.role?.name === ROLES.ADMIN || user?.role?.name === 'ADMIN') {
+    if (feature === FEATURES.DASHBOARD || feature === 'dashboard' || feature === 'overview') {
+      return true;
+    }
+  }
 
   const acceptedFeatures = FEATURE_ALIASES[feature] ?? [feature]
 
