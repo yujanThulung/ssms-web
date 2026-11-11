@@ -13,6 +13,7 @@ import {
   Skeleton,
   Card,
   Dropdown,
+  Tooltip,
   message,
 } from 'antd'
 import {
@@ -25,6 +26,8 @@ import {
   Download,
   FileText,
   ChevronDown,
+  Wallet,
+  Eye,
 } from 'lucide-react'
 import { colors } from '../../../lib/designTokens'
 import { formatMoney } from '../../../features/fee-structures'
@@ -38,9 +41,13 @@ import {
   useGenerateInvoicePdf,
   type InvoiceLine,
 } from '../../../features/invoices'
+import { useInvoicePayments, type Payment } from '../../../features/payments'
 import { InvoiceStatusTag } from './components/InvoiceStatusTag'
 import { CancelInvoiceModal } from './components/CancelInvoiceModal'
 import { InvoicePrintModal } from './components/InvoicePrintModal'
+import { CreatePaymentDrawer } from '../payments/components/CreatePaymentDrawer'
+import { PaymentReceiptModal } from '../payments/components/PaymentReceiptModal'
+import { PaymentMethodTag } from '../payments/components/PaymentMethodTag'
 
 const { Text } = Typography
 
@@ -51,14 +58,28 @@ export default function InvoiceDetailPage() {
 
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [printModalOpen, setPrintModalOpen] = useState(false)
+  const [paymentDrawerOpen, setPaymentDrawerOpen] = useState(false)
+  const [receiptPayment, setReceiptPayment] = useState<Payment | null>(null)
 
   const { data: invoice, isLoading, refetch } = useInvoice(id)
   const { mutateAsync: downloadPdf, isPending: isDownloading } = useDownloadInvoicePdf()
   const { mutateAsync: generatePdf, isPending: isGenerating } = useGenerateInvoicePdf()
 
+  // Payments recorded against this invoice
+  const { data: invoicePayments, isLoading: loadingPayments } = useInvoicePayments(
+    invoice?.id || id
+  )
+
   const canCancel =
     (can(FEATURES.INVOICE, ACTIONS.DELETE) || can(FEATURES.INVOICE, ACTIONS.CANCEL)) &&
     canCancelInvoice(invoice)
+
+  const outstandingNum = parseFloat(String(invoice?.outstandingAmount || 0))
+  const canRecordPayment =
+    can(FEATURES.PAYMENT, ACTIONS.CREATE) &&
+    Boolean(invoice) &&
+    invoice?.status !== 'CANCELLED' &&
+    outstandingNum > 0
 
   const handleDownloadPdf = async () => {
     if (!invoice) return
@@ -193,6 +214,81 @@ export default function InvoiceDetailPage() {
   const fineNum = parseFloat(String(invoice?.fineAmount || 0))
   const prevBalanceNum = parseFloat(String(invoice?.previousBalance || 0))
 
+  const paymentColumns = [
+    {
+      title: 'Receipt No.',
+      dataIndex: 'paymentNumber',
+      key: 'paymentNumber',
+      render: (num: string) => (
+        <span
+          style={{ fontFamily: 'monospace', fontWeight: 600, color: colors.primary, fontSize: 13 }}
+        >
+          {num}
+        </span>
+      ),
+    },
+    {
+      title: 'Date',
+      dataIndex: 'paymentDateBS',
+      key: 'paymentDate',
+      render: (bs: string, p: Payment) => (
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 13 }}>{bs} BS</div>
+          <div style={{ fontSize: 11, color: colors.muted }}>{p.paymentDate}</div>
+        </div>
+      ),
+    },
+    {
+      title: 'Method',
+      key: 'paymentMethod',
+      render: (_: unknown, p: Payment) => <PaymentMethodTag method={p.paymentMethod} />,
+    },
+    {
+      title: 'Amount',
+      dataIndex: 'amount',
+      key: 'amount',
+      align: 'right' as const,
+      render: (val: string) => (
+        <span style={{ fontWeight: 700, color: colors.success }}>Rs. {formatMoney(val)}</span>
+      ),
+    },
+    {
+      title: 'Collected By',
+      key: 'collectedBy',
+      render: (_: unknown, p: Payment) => (
+        <span style={{ fontSize: 12, color: colors.secondaryText }}>
+          {p.collectedBy?.name || '—'}
+        </span>
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      align: 'right' as const,
+      width: 120,
+      render: (_: unknown, p: Payment) => (
+        <Space size={0}>
+          <Tooltip title="View Receipt">
+            <Button
+              type="text"
+              size="small"
+              icon={<Eye size={14} />}
+              onClick={() => navigate(`/accounts/payments/${p.id}`)}
+            />
+          </Tooltip>
+          <Tooltip title="Print Receipt">
+            <Button
+              type="text"
+              size="small"
+              icon={<Printer size={14} />}
+              onClick={() => setReceiptPayment(p)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ]
+
   return (
     <div>
       <PageHeader
@@ -211,6 +307,14 @@ export default function InvoiceDetailPage() {
         actions={
           invoice && (
             <Space>
+              {canRecordPayment && (
+                <Button
+                  icon={<Wallet size={15} />}
+                  onClick={() => setPaymentDrawerOpen(true)}
+                >
+                  Record Payment
+                </Button>
+              )}
               <Button
                 icon={<Download size={15} />}
                 onClick={handleDownloadPdf}
@@ -471,6 +575,48 @@ export default function InvoiceDetailPage() {
             </Col>
           </Row>
 
+          {/* Payment History */}
+          <Card
+            title={
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 16, fontWeight: 600 }}>Payment History</span>
+                <span style={{ fontSize: 12, fontWeight: 400, color: colors.muted }}>
+                  {(invoicePayments?.length || 0)} payment
+                  {(invoicePayments?.length || 0) !== 1 ? 's' : ''} against this invoice
+                </span>
+              </div>
+            }
+            extra={
+              canRecordPayment && (
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<Wallet size={13} />}
+                  onClick={() => setPaymentDrawerOpen(true)}
+                  style={{ backgroundColor: colors.primary }}
+                >
+                  Record Payment
+                </Button>
+              )
+            }
+            style={{ borderRadius: 12, border: `1px solid ${colors.border}` }}
+          >
+            <Table<Payment>
+              rowKey="id"
+              size="middle"
+              columns={paymentColumns}
+              dataSource={invoicePayments || []}
+              loading={loadingPayments}
+              pagination={false}
+              locale={{
+                emptyText:
+                  outstandingNum > 0
+                    ? 'No payments recorded yet for this invoice.'
+                    : undefined,
+              }}
+            />
+          </Card>
+
           {/* Notes & Audit Info */}
           <Card style={{ borderRadius: 12, border: `1px solid ${colors.border}` }}>
             {invoice.notes && (
@@ -517,6 +663,27 @@ export default function InvoiceDetailPage() {
         invoice={invoice || null}
         open={printModalOpen}
         onClose={() => setPrintModalOpen(false)}
+      />
+
+      <CreatePaymentDrawer
+        open={paymentDrawerOpen}
+        onClose={() => setPaymentDrawerOpen(false)}
+        invoiceId={invoice?.id}
+        invoiceNumber={invoice?.invoiceNumber}
+        outstandingAmount={outstandingNum > 0 ? outstandingNum : undefined}
+        studentName={invoice?.student?.name}
+        onSuccess={(created) => {
+          setPaymentDrawerOpen(false)
+          setReceiptPayment(created)
+          refetch()
+        }}
+      />
+
+      {/* Official receipt PDF, shown after recording a payment */}
+      <PaymentReceiptModal
+        payment={receiptPayment}
+        open={Boolean(receiptPayment)}
+        onClose={() => setReceiptPayment(null)}
       />
     </div>
   )

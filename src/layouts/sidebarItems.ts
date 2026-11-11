@@ -13,6 +13,7 @@ import {
   Award,
   ReceiptText,
   Receipt,
+  Wallet,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { FEATURES } from '../utils'
@@ -48,6 +49,7 @@ export const people: SidebarItem[] = [
 
 export const accounts: SidebarItem[] = [
   { title: 'Invoices', url: '/accounts/invoices', icon: Receipt, feature: FEATURES.INVOICE },
+  { title: 'Payments', url: '/accounts/payments', icon: Wallet, feature: FEATURES.PAYMENT },
   { title: 'Fee Profiles', url: '/accounts/fee-profiles', icon: ReceiptText, feature: FEATURES.FEE_PROFILE },
   { title: 'Program Assignments', url: '/accounts/program-assignments', icon: Award, feature: FEATURES.PROGRAM_ASSIGNMENT },
   // Discounts and Scholarships live in one screen behind tabs — see FeeStructurePage.

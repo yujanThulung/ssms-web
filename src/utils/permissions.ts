@@ -24,6 +24,7 @@ export const FEATURES = {
   PROGRAM_ASSIGNMENT: 'assignment',
   FEE_PROFILE: 'fee_profile',
   INVOICE: 'invoice',
+  PAYMENT: 'payment',
 } as const
 
 export const ACTIONS = {
@@ -61,6 +62,7 @@ const FEATURE_ALIASES: Record<string, string[]> = {
   [FEATURES.PROGRAM_ASSIGNMENT]: [FEATURES.PROGRAM_ASSIGNMENT, 'program_assignment'],
   [FEATURES.INVOICE]: [FEATURES.INVOICE, 'account', 'accounts', 'invoice', 'invoices'],
   [FEATURES.ACCOUNT]: [FEATURES.ACCOUNT, 'invoice', 'invoices', 'account', 'accounts'],
+  [FEATURES.PAYMENT]: [FEATURES.PAYMENT, 'payment', 'payments', 'account', 'accounts'],
 }
 
 /** Check if user has permission to perform an action on a feature */

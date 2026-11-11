@@ -36,6 +36,15 @@ export const ENDPOINTS = {
     PDF_INFO: (id: string | number) => `/accounts/invoices/${id}/pdf-info`,
     GENERATE_PDF: (id: string | number) => `/accounts/invoices/${id}/regenerate-pdf`,
   },
+  PAYMENTS: {
+    BASE: '/accounts/payments',
+    DETAIL: (id: string) => `/accounts/payments/${id}`,
+    RECEIPT: (id: string) => `/accounts/payments/${id}/receipt`,
+    REGENERATE_RECEIPT: (id: string) => `/accounts/payments/${id}/regenerate-receipt`,
+    RECEIPT_INFO: (id: string) => `/accounts/payments/${id}/receipt-info`,
+    BY_STUDENT: (studentId: string) => `/accounts/payments/student/${studentId}`,
+    BY_INVOICE: (invoiceId: string) => `/accounts/payments/invoice/${invoiceId}`,
+  },
   PROGRAM_ASSIGNMENTS: {
     BASE: '/accounts/program-assignments',
     DETAIL: (id: string) => `/accounts/program-assignments/${id}`,

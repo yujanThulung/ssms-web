@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Button, Space, Typography, Tooltip, Empty, Row, Col, Dropdown, message } from 'antd'
+import { Button, Space, Typography, Tooltip, Empty, Row, Col, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
   Receipt,
@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   Clock,
   Download,
-  MoreVertical,
 } from 'lucide-react'
 import { colors } from '../../../lib/designTokens'
 import { usePermission } from '../../../context/PermissionContext'
@@ -21,6 +20,7 @@ import { AppTable } from '../../../components/common/AppTable'
 import { TableSkeleton } from '../../../components/skeleton'
 import { StatCard } from '../../../components/common/StatCard'
 import { formatMoney, toListArray } from '../../../features/fee-structures'
+import type { Payment } from '../../../features/payments'
 import {
   useInvoices,
   canCancelInvoice,
@@ -33,6 +33,8 @@ import { CreateInvoiceDrawer } from '../../accounts/invoices/components/CreateIn
 import { InvoiceDetailDrawer } from '../../accounts/invoices/components/InvoiceDetailDrawer'
 import { CancelInvoiceModal } from '../../accounts/invoices/components/CancelInvoiceModal'
 import { InvoicePrintModal } from '../../accounts/invoices/components/InvoicePrintModal'
+import { CreatePaymentDrawer } from '../../accounts/payments/components/CreatePaymentDrawer'
+import { PaymentReceiptModal } from '../../accounts/payments/components/PaymentReceiptModal'
 
 const { Title, Text } = Typography
 
@@ -46,11 +48,19 @@ export function StudentInvoicesTab({ profile, academicYearId }: StudentInvoicesT
 
   const canCreate = can(FEATURES.INVOICE, ACTIONS.CREATE)
   const canDelete = can(FEATURES.INVOICE, ACTIONS.DELETE) || can(FEATURES.INVOICE, ACTIONS.CANCEL)
+  const canRecordPayment = can(FEATURES.PAYMENT, ACTIONS.CREATE)
 
   const [createDrawerOpen, setCreateModalOpen] = useState(false)
   const [detailDrawerInvoiceId, setDetailDrawerInvoiceId] = useState<string | null>(null)
   const [cancelModalInvoice, setCancelModalInvoice] = useState<Invoice | null>(null)
   const [printModalInvoice, setPrintModalInvoice] = useState<Invoice | null>(null)
+  const [payInvoice, setPayInvoice] = useState<Invoice | null>(null)
+  const [receiptPayment, setReceiptPayment] = useState<Payment | null>(null)
+
+  const canPayInvoice = (record: Invoice) =>
+    canRecordPayment &&
+    record.status !== 'CANCELLED' &&
+    parseFloat(String(record.outstandingAmount || 0)) > 0
 
   const { data: invoicesRes, isLoading, isFetching, refetch } = useInvoices({
     studentId: profile.student.id,
@@ -222,11 +232,13 @@ export function StudentInvoicesTab({ profile, academicYearId }: StudentInvoicesT
       title: 'Actions',
       key: 'actions',
       align: 'right' as const,
+      width: 200,
       render: (_: unknown, record: Invoice) => {
         const eligibleForCancel = canDelete && canCancelInvoice(record)
+        const eligibleForPay = canPayInvoice(record)
 
         return (
-          <Space onClick={(e) => e.stopPropagation()}>
+          <Space size={0} onClick={(e) => e.stopPropagation()}>
             <Tooltip title="View details">
               <Button
                 type="text"
@@ -235,46 +247,44 @@ export function StudentInvoicesTab({ profile, academicYearId }: StudentInvoicesT
                 onClick={() => setDetailDrawerInvoiceId(record.id)}
               />
             </Tooltip>
-            <Dropdown
-              menu={{
-                items: [
-                  {
-                    key: 'download',
-                    label: 'Download PDF',
-                    icon: <Download size={15} />,
-                    onClick: () => handleDownloadPdf(record),
-                  },
-                  {
-                    key: 'print',
-                    label: 'Print Invoice',
-                    icon: <Printer size={15} />,
-                    onClick: () => setPrintModalInvoice(record),
-                  },
-                  ...(eligibleForCancel
-                    ? [
-                        {
-                          type: 'divider' as const,
-                        },
-                        {
-                          key: 'cancel',
-                          label: 'Cancel Invoice',
-                          icon: <XCircle size={15} />,
-                          danger: true,
-                          onClick: () => setCancelModalInvoice(record),
-                        },
-                      ]
-                    : []),
-                ],
-              }}
-              trigger={['click']}
-            >
+            {eligibleForPay && (
+              <Tooltip title="Record Payment">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<Wallet size={15} color={colors.success} />}
+                  onClick={() => setPayInvoice(record)}
+                />
+              </Tooltip>
+            )}
+            <Tooltip title="Print Invoice">
               <Button
                 type="text"
                 size="small"
-                icon={<MoreVertical size={15} color={colors.secondaryText} />}
-                loading={isDownloading}
+                icon={<Printer size={15} color={colors.secondaryText} />}
+                onClick={() => setPrintModalInvoice(record)}
               />
-            </Dropdown>
+            </Tooltip>
+            <Tooltip title="Download PDF">
+              <Button
+                type="text"
+                size="small"
+                loading={isDownloading}
+                icon={<Download size={15} color={colors.secondaryText} />}
+                onClick={() => handleDownloadPdf(record)}
+              />
+            </Tooltip>
+            {eligibleForCancel && (
+              <Tooltip title="Cancel Invoice">
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<XCircle size={15} />}
+                  onClick={() => setCancelModalInvoice(record)}
+                />
+              </Tooltip>
+            )}
           </Space>
         )
       },
@@ -438,6 +448,30 @@ export function StudentInvoicesTab({ profile, academicYearId }: StudentInvoicesT
         invoice={printModalInvoice}
         open={Boolean(printModalInvoice)}
         onClose={() => setPrintModalInvoice(null)}
+      />
+
+      {/* Record a payment directly from the student's fee profile */}
+      <CreatePaymentDrawer
+        open={Boolean(payInvoice)}
+        onClose={() => setPayInvoice(null)}
+        invoiceId={payInvoice?.id}
+        invoiceNumber={payInvoice?.invoiceNumber}
+        outstandingAmount={
+          payInvoice ? parseFloat(String(payInvoice.outstandingAmount || 0)) : undefined
+        }
+        studentName={payInvoice?.student?.name || profile.student?.name}
+        onSuccess={(created) => {
+          setPayInvoice(null)
+          setReceiptPayment(created)
+          refetch()
+        }}
+      />
+
+      {/* Official receipt PDF, shown after recording a payment */}
+      <PaymentReceiptModal
+        payment={receiptPayment}
+        open={Boolean(receiptPayment)}
+        onClose={() => setReceiptPayment(null)}
       />
     </div>
   )

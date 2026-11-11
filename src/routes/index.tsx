@@ -15,6 +15,8 @@ const UsersPage = lazy(() => import('../pages/users/Users'))
 const AccountsPage = lazy(() => import('../pages/accounts/AccountsPage'))
 const InvoicesPage = lazy(() => import('../pages/accounts/invoices/InvoicesPage'))
 const InvoiceDetailPage = lazy(() => import('../pages/accounts/invoices/InvoiceDetailPage'))
+const PaymentsPage = lazy(() => import('../pages/accounts/payments/PaymentsPage'))
+const PaymentDetailPage = lazy(() => import('../pages/accounts/payments/PaymentDetailPage'))
 const ProgramAssignmentsPage = lazy(() => import('../pages/program-assignments/ProgramAssignmentsPage'))
 const FeeProfilePage = lazy(() => import('../pages/fee-profile/FeeProfilePage'))
 const PermissionsPage = lazy(() => import('../pages/permissions/PermissionsPage'))
@@ -37,6 +39,9 @@ const protectedRoutes = [
   { path: 'accounts/invoices', element: <InvoicesPage />, feature: FEATURES.INVOICE },
   { path: 'accounts/invoices/:id', element: <InvoiceDetailPage />, feature: FEATURES.INVOICE },
   { path: 'invoices', element: <Navigate to="/accounts/invoices" replace /> },
+  { path: 'accounts/payments', element: <PaymentsPage />, feature: FEATURES.PAYMENT },
+  { path: 'accounts/payments/:id', element: <PaymentDetailPage />, feature: FEATURES.PAYMENT },
+  { path: 'payments', element: <Navigate to="/accounts/payments" replace /> },
   { path: 'accounts/fee-profiles', element: <FeeProfilePage />, feature: FEATURES.FEE_PROFILE },
   { path: 'accounts/fee-profiles/:studentId', element: <FeeProfilePage />, feature: FEATURES.FEE_PROFILE },
   { path: 'accounts/program-assignments', element: <ProgramAssignmentsPage />, feature: FEATURES.PROGRAM_ASSIGNMENT },
