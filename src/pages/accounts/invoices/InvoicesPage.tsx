@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   parseAsInteger,
   parseAsString,
@@ -53,11 +54,12 @@ import {
 } from '../../../features/invoices'
 import { InvoiceStatusTag } from './components/InvoiceStatusTag'
 import { CreateInvoiceDrawer } from './components/CreateInvoiceDrawer'
-import { InvoiceDetailDrawer } from './components/InvoiceDetailDrawer'
 import { CancelInvoiceModal } from './components/CancelInvoiceModal'
 import { InvoicePrintModal } from './components/InvoicePrintModal'
 
 export default function InvoicesPage() {
+  const navigate = useNavigate()
+  const location = useLocation()
   const { can } = usePermission()
 
   const canCreate = can(FEATURES.INVOICE, ACTIONS.CREATE)
@@ -77,12 +79,10 @@ export default function InvoicesPage() {
 
   // ── Modals & Drawers ────────────────────────────────────────────────────────
   const [createDrawerOpen, setCreateModalOpen] = useState(false)
-  const [detailDrawerInvoiceId, setDetailDrawerInvoiceId] = useState<string | null>(null)
   const [cancelModalInvoice, setCancelModalInvoice] = useState<Invoice | null>(null)
   const [printModalInvoice, setPrintModalInvoice] = useState<Invoice | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
-  const [printingId, setPrintingId] = useState<string | null>(null)
 
   const { mutateAsync: downloadPdf } = useDownloadInvoicePdf()
   const { mutateAsync: generatePdf } = useGenerateInvoicePdf()
@@ -100,55 +100,7 @@ export default function InvoicesPage() {
   }
 
   const handleViewInvoice = (inv: Invoice) => {
-    // Directly trigger print instead of showing modal
-    handlePrintInvoice(inv)
-  }
-
-  const handlePrintInvoice = async (inv: Invoice) => {
-    setPrintingId(inv.id)
-    try {
-      // Dynamically import the client and endpoints
-      const client = (await import('../../../lib/api/client')).default
-      const { ENDPOINTS } = await import('../../../lib/api/endpoints')
-      
-      // Fetch PDF from backend
-      const response = await client.get(ENDPOINTS.INVOICES.PDF(inv.id), {
-        responseType: 'blob',
-        params: { print: 'true', inline: 'true' },
-      })
-      
-      const blob = new Blob([response.data], { type: 'application/pdf' })
-      const url = window.URL.createObjectURL(blob)
-      
-      // Create hidden iframe and trigger print
-      const iframe = document.createElement('iframe')
-      iframe.style.position = 'fixed'
-      iframe.style.right = '0'
-      iframe.style.bottom = '0'
-      iframe.style.width = '0'
-      iframe.style.height = '0'
-      iframe.style.border = 'none'
-      document.body.appendChild(iframe)
-      
-      iframe.onload = () => {
-        try {
-          iframe.contentWindow?.focus()
-          iframe.contentWindow?.print()
-        } catch (err) {
-          console.error('Print error:', err)
-        }
-        setTimeout(() => {
-          document.body.removeChild(iframe)
-          window.URL.revokeObjectURL(url)
-          setPrintingId(null)
-        }, 1000)
-      }
-      
-      iframe.src = url
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to open print dialog')
-      setPrintingId(null)
-    }
+    navigate(`/accounts/invoices/${inv.id}`, { state: { from: `${location.pathname}${location.search}` } })
   }
 
   const handleGenerateInvoicePdf = async (inv: Invoice) => {
@@ -239,7 +191,7 @@ export default function InvoicesPage() {
       },
       {
         key: 'invoiced',
-        label: 'Total Invoiced',
+        label: 'Invoiced (this page)',
         value: formatMoney(totalInvoiced),
         icon: <Wallet size={18} />,
         color: colors.info,
@@ -247,7 +199,7 @@ export default function InvoicesPage() {
       },
       {
         key: 'paid',
-        label: 'Amount Collected',
+        label: 'Collected (this page)',
         value: formatMoney(totalPaid),
         icon: <CheckCircle2 size={18} />,
         color: colors.success,
@@ -255,7 +207,7 @@ export default function InvoicesPage() {
       },
       {
         key: 'outstanding',
-        label: 'Outstanding Balance',
+        label: 'Outstanding (this page)',
         value: formatMoney(totalOutstanding),
         icon: <Clock size={18} />,
         color: colors.warning,
@@ -263,7 +215,7 @@ export default function InvoicesPage() {
       },
       {
         key: 'overdue',
-        label: 'Overdue Invoices',
+        label: 'Overdue (this page)',
         value: overdueCount,
         icon: <AlertTriangle size={18} />,
         color: colors.error,
@@ -434,7 +386,7 @@ export default function InvoicesPage() {
             <span
               onClick={(e) => {
                 e.stopPropagation()
-                setDetailDrawerInvoiceId(record.id)
+                handleViewInvoice(record)
               }}
               style={{
                 fontWeight: 600,
@@ -468,7 +420,7 @@ export default function InvoicesPage() {
             {record.student?.name?.charAt(0) || 'S'}
           </Avatar>
           <div>
-            <div style={{ fontWeight: 600, color: colors.text }}>{record.student?.name}</div>
+            <a href={`/accounts/fee-profiles/${record.student?.id}`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); navigate(`/accounts/fee-profiles/${record.student?.id}`) }} style={{ fontWeight: 600, color: colors.primary }}>{record.student?.name}</a>
             <div style={{ fontSize: 11, color: colors.muted }}>
               {record.student?.admissionNumber ? `Adm: ${record.student.admissionNumber}` : ''}
               {record.student?.rollNumber ? ` • Roll: ${record.student.rollNumber}` : ''}
@@ -586,26 +538,17 @@ export default function InvoicesPage() {
         const menuItems = [
           {
             key: 'view',
-            label: 'Quick Print',
+            label: 'View invoice',
             icon: <Eye size={14} />,
-            disabled: printingId === record.id,
             onClick: () => handleViewInvoice(record),
           },
           {
             key: 'print-modal',
-            label: 'View Print Modal',
+            label: 'Print invoice',
             icon: <Printer size={14} />,
             onClick: () => setPrintModalInvoice(record),
           },
-          {
-            key: 'details',
-            label: 'Full Details',
-            icon: <FileText size={14} />,
-            onClick: () => setDetailDrawerInvoiceId(record.id),
-          },
-          {
-            type: 'divider' as const,
-          },
+          { type: 'divider' as const },
           {
             key: 'download',
             label: 'Download PDF',
@@ -638,11 +581,10 @@ export default function InvoicesPage() {
 
         return (
           <Space onClick={(e) => e.stopPropagation()}>
-            <Tooltip title={printingId === record.id ? "Loading..." : "Quick print"}>
+            <Tooltip title="View invoice">
               <Button
                 type="text"
                 size="small"
-                loading={printingId === record.id}
                 icon={<Eye size={15} color={colors.secondaryText} />}
                 onClick={() => handleViewInvoice(record)}
               />
@@ -656,7 +598,7 @@ export default function InvoicesPage() {
                 onClick={() => handleDownloadInvoice(record)}
               />
             </Tooltip>
-            <Tooltip title="View modal">
+            <Tooltip title="Print invoice">
               <Button
                 type="text"
                 size="small"
@@ -790,7 +732,7 @@ export default function InvoicesPage() {
             total: paginationMeta.total,
           }}
           onChange={handleTableChange}
-          onRowClick={(record) => handleViewInvoice(record)}
+            onRowClick={(record) => handleViewInvoice(record)}
           loading={isFetching}
         />
       )}
@@ -805,12 +747,6 @@ export default function InvoicesPage() {
         }}
       />
 
-      <InvoiceDetailDrawer
-        invoiceId={detailDrawerInvoiceId}
-        open={Boolean(detailDrawerInvoiceId)}
-        onClose={() => setDetailDrawerInvoiceId(null)}
-        onInvoiceUpdated={() => refetch()}
-      />
 
       <CancelInvoiceModal
         invoice={cancelModalInvoice}

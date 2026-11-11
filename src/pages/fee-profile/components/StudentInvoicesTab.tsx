@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Space, Typography, Tooltip, Empty, Row, Col, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -30,7 +31,6 @@ import {
 import type { FeeProfile } from '../../../features/fee-profile'
 import { InvoiceStatusTag } from '../../accounts/invoices/components/InvoiceStatusTag'
 import { CreateInvoiceDrawer } from '../../accounts/invoices/components/CreateInvoiceDrawer'
-import { InvoiceDetailDrawer } from '../../accounts/invoices/components/InvoiceDetailDrawer'
 import { CancelInvoiceModal } from '../../accounts/invoices/components/CancelInvoiceModal'
 import { InvoicePrintModal } from '../../accounts/invoices/components/InvoicePrintModal'
 import { CreatePaymentDrawer } from '../../accounts/payments/components/CreatePaymentDrawer'
@@ -44,6 +44,8 @@ interface StudentInvoicesTabProps {
 }
 
 export function StudentInvoicesTab({ profile, academicYearId }: StudentInvoicesTabProps) {
+  const navigate = useNavigate()
+  const location = useLocation()
   const { can } = usePermission()
 
   const canCreate = can(FEATURES.INVOICE, ACTIONS.CREATE)
@@ -51,7 +53,6 @@ export function StudentInvoicesTab({ profile, academicYearId }: StudentInvoicesT
   const canRecordPayment = can(FEATURES.PAYMENT, ACTIONS.CREATE)
 
   const [createDrawerOpen, setCreateModalOpen] = useState(false)
-  const [detailDrawerInvoiceId, setDetailDrawerInvoiceId] = useState<string | null>(null)
   const [cancelModalInvoice, setCancelModalInvoice] = useState<Invoice | null>(null)
   const [printModalInvoice, setPrintModalInvoice] = useState<Invoice | null>(null)
   const [payInvoice, setPayInvoice] = useState<Invoice | null>(null)
@@ -135,7 +136,7 @@ export function StudentInvoicesTab({ profile, academicYearId }: StudentInvoicesT
             <span
               onClick={(e) => {
                 e.stopPropagation()
-                setDetailDrawerInvoiceId(record.id)
+                navigate(`/accounts/invoices/${record.id}`, { state: { from: `${location.pathname}${location.search}` } })
               }}
               style={{
                 fontWeight: 600,
@@ -244,11 +245,11 @@ export function StudentInvoicesTab({ profile, academicYearId }: StudentInvoicesT
                 type="text"
                 size="small"
                 icon={<Eye size={15} color={colors.secondaryText} />}
-                onClick={() => setDetailDrawerInvoiceId(record.id)}
+                onClick={() => navigate(`/accounts/invoices/${record.id}`, { state: { from: `${location.pathname}${location.search}` } })}
               />
             </Tooltip>
             {eligibleForPay && (
-              <Tooltip title="Record Payment">
+              <Tooltip title="Pay Bill">
                 <Button
                   type="text"
                   size="small"
@@ -415,7 +416,7 @@ export function StudentInvoicesTab({ profile, academicYearId }: StudentInvoicesT
           columns={columns}
           dataSource={invoices}
           pagination={false}
-          onRowClick={(record) => setDetailDrawerInvoiceId(record.id)}
+          onRowClick={(record) => navigate(`/accounts/invoices/${record.id}`, { state: { from: `${location.pathname}${location.search}` } })}
           loading={isFetching}
         />
       )}
@@ -430,12 +431,6 @@ export function StudentInvoicesTab({ profile, academicYearId }: StudentInvoicesT
         onSuccess={() => refetch()}
       />
 
-      <InvoiceDetailDrawer
-        invoiceId={detailDrawerInvoiceId}
-        open={Boolean(detailDrawerInvoiceId)}
-        onClose={() => setDetailDrawerInvoiceId(null)}
-        onInvoiceUpdated={() => refetch()}
-      />
 
       <CancelInvoiceModal
         invoice={cancelModalInvoice}

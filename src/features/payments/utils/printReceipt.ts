@@ -220,7 +220,6 @@ export function generateReceiptHtml(payment: Payment, logoUrl?: string): string 
       <p>For inquiries, contact School Administration Office.</p>
       <p style="font-size:10px;color:#666;margin-top:8px;">Generated: ${new Date().toLocaleString('en-US')}</p>
     </div>
-    <div class="watermark">*** This is a computer-generated receipt ***</div>
   </div>
 </body>
 </html>`

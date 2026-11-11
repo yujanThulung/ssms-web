@@ -32,7 +32,7 @@ export function PaymentReceiptModal({
   payment,
   open,
   onClose,
-  autoPrint = true,
+  autoPrint = false,
 }: PaymentReceiptModalProps) {
   const [isPrinting, setIsPrinting] = useState(false)
   const hasAutoPrintedRef = useRef(false)

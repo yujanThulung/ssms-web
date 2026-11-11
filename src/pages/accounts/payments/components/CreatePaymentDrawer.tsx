@@ -50,11 +50,19 @@ export function CreatePaymentDrawer({
   const [form] = Form.useForm()
   const [error, setError] = useState<string | null>(null)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+  const [invoiceSearch, setInvoiceSearch] = useState('')
+  const [debouncedInvoiceSearch, setDebouncedInvoiceSearch] = useState('')
   const { mutateAsync: createPayment, isPending } = useCreatePayment()
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedInvoiceSearch(invoiceSearch), 300)
+    return () => window.clearTimeout(timer)
+  }, [invoiceSearch])
 
   // If no invoice was passed, fetch unpaid/partially paid invoices for the dropdown
   const { data: invoicesData, isLoading: loadingInvoices } = useInvoices({
     limit: 50,
+    search: debouncedInvoiceSearch.trim() || undefined,
   })
 
   const availableInvoices = (invoicesData?.data || []).filter(
@@ -103,7 +111,7 @@ export function CreatePaymentDrawer({
       onSuccess?.(created)
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to record payment')
+      setError(err instanceof Error ? err.message : 'Failed to save payment')
     }
   }
 
@@ -126,7 +134,7 @@ export function CreatePaymentDrawer({
             <DollarSign size={18} />
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>Record Payment</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>Pay Bill</div>
             {activeInvoiceNumber && (
               <div style={{ fontSize: 12, color: colors.muted }}>
                 Invoice: {activeInvoiceNumber} {activeStudentName ? `(${activeStudentName})` : ''}
@@ -145,6 +153,7 @@ export function CreatePaymentDrawer({
           // next open starts fresh (setState is allowed in event handlers).
           setError(null)
           setSelectedInvoice(null)
+          setInvoiceSearch('')
         }
       }}
       footer={
@@ -156,7 +165,7 @@ export function CreatePaymentDrawer({
             onClick={() => form.submit()}
             style={{ backgroundColor: colors.primary }}
           >
-            Record Payment
+            Pay Bill
           </Button>
         </Space>
       }
@@ -182,13 +191,12 @@ export function CreatePaymentDrawer({
           >
             <Select
               showSearch
+              filterOption={false}
+              onSearch={setInvoiceSearch}
               placeholder="Search by Invoice # or Student Name"
               loading={loadingInvoices}
               value={selectedInvoice?.id}
               onChange={handleInvoiceSelect}
-              filterOption={(input, option) =>
-                (option?.label as string ?? '').toLowerCase().includes(input.toLowerCase())
-              }
               options={availableInvoices.map((inv) => ({
                 value: inv.id,
                 label: `${inv.invoiceNumber} — ${inv.student?.name} (Due: Rs. ${parseFloat(String(inv.outstandingAmount || 0)).toFixed(2)})`,
@@ -271,13 +279,8 @@ export function CreatePaymentDrawer({
         </Form.Item>
 
         <Form.Item label="Remarks" name="remarks">
-          <Input.TextArea rows={3} placeholder="e.g. Partial payment / tuition fee (optional)" />
+          <Input.TextArea rows={3} placeholder="e.g. Partial payment / tuition fee" />
         </Form.Item>
-
-        <div style={{ fontSize: 12, color: colors.muted }}>
-          Receipt number, transaction reference and today's date (AD/BS) are
-          recorded automatically.
-        </div>
       </Form>
     </Drawer>
   )

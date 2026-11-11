@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   Button,
   Space,
@@ -54,6 +54,8 @@ const { Text } = Typography
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const backToList = () => navigate((location.state as { from?: string } | null)?.from || '/accounts/invoices')
   const { can } = usePermission()
 
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
@@ -219,12 +221,8 @@ export default function InvoiceDetailPage() {
       title: 'Receipt No.',
       dataIndex: 'paymentNumber',
       key: 'paymentNumber',
-      render: (num: string) => (
-        <span
-          style={{ fontFamily: 'monospace', fontWeight: 600, color: colors.primary, fontSize: 13 }}
-        >
-          {num}
-        </span>
+      render: (num: string, payment: Payment) => (
+        <a href={`/accounts/payments/${payment.id}`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); navigate(`/accounts/payments/${payment.id}`) }} style={{ fontFamily: 'monospace', fontWeight: 600, color: colors.primary, fontSize: 13 }}>{num}</a>
       ),
     },
     {
@@ -249,7 +247,7 @@ export default function InvoiceDetailPage() {
       key: 'amount',
       align: 'right' as const,
       render: (val: string) => (
-        <span style={{ fontWeight: 700, color: colors.success }}>Rs. {formatMoney(val)}</span>
+        <span style={{ fontWeight: 700, color: colors.success }}>{formatMoney(val)}</span>
       ),
     },
     {
@@ -297,7 +295,7 @@ export default function InvoiceDetailPage() {
             <Button
               type="text"
               icon={<ArrowLeft size={18} />}
-              onClick={() => navigate('/accounts/invoices')}
+              onClick={backToList}
             />
             <span>{invoice?.invoiceNumber || 'Invoice Details'}</span>
             {invoice && <InvoiceStatusTag status={invoice.status} />}
@@ -312,7 +310,7 @@ export default function InvoiceDetailPage() {
                   icon={<Wallet size={15} />}
                   onClick={() => setPaymentDrawerOpen(true)}
                 >
-                  Record Payment
+                  Pay Bill
                 </Button>
               )}
               <Button
@@ -377,7 +375,7 @@ export default function InvoiceDetailPage() {
           type="error"
           showIcon
           action={
-            <Button onClick={() => navigate('/accounts/invoices')}>Back to Invoices</Button>
+            <Button onClick={backToList}>Back to Invoices</Button>
           }
         />
       ) : (
@@ -416,9 +414,9 @@ export default function InvoiceDetailPage() {
                   <User size={14} />
                   <span>STUDENT INFORMATION</span>
                 </Space>
-                <div style={{ fontSize: 18, fontWeight: 700, color: colors.text }}>
+                <a href={`/accounts/fee-profiles/${invoice.student?.id}`} onClick={(event) => { event.preventDefault(); navigate(`/accounts/fee-profiles/${invoice.student?.id}`) }} style={{ display: 'inline-block', fontSize: 18, fontWeight: 700, color: colors.primary }}>
                   {invoice.student?.name}
-                </div>
+                </a>
                 <div style={{ fontSize: 13, color: colors.secondaryText, marginTop: 4 }}>
                   <span>Admission Number: </span>
                   <Text strong>{invoice.student?.admissionNumber || '—'}</Text>
@@ -585,19 +583,6 @@ export default function InvoiceDetailPage() {
                   {(invoicePayments?.length || 0) !== 1 ? 's' : ''} against this invoice
                 </span>
               </div>
-            }
-            extra={
-              canRecordPayment && (
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<Wallet size={13} />}
-                  onClick={() => setPaymentDrawerOpen(true)}
-                  style={{ backgroundColor: colors.primary }}
-                >
-                  Record Payment
-                </Button>
-              )
             }
             style={{ borderRadius: 12, border: `1px solid ${colors.border}` }}
           >

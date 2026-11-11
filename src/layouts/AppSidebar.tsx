@@ -9,13 +9,17 @@ import logo from '../assets/logo.png'
 
 const { Sider } = Layout
 
+function pathMatches(pathname: string, url: string) {
+  return pathname === url || pathname.startsWith(`${url}/`)
+}
+
 type MenuItem = Required<MenuProps>['items'][number]
 
 /** Returns the set of parent keys whose children contain the active path. */
 function getOpenKeys(items: SidebarItem[], pathname: string): string[] {
   const keys: string[] = []
   for (const item of items) {
-    if (item.children?.some((c) => c.url === pathname)) {
+    if (item.children?.some((c) => pathMatches(pathname, c.url))) {
       keys.push(item.url)
     }
   }
@@ -39,7 +43,7 @@ function buildMenuItems(
         const visibleChildren = item.children.filter((c) =>
           c.alwaysVisible ? true : can(c.feature, ACTIONS.VIEW),
         )
-        const anyChildActive = visibleChildren.some((c) => c.url === pathname)
+        const anyChildActive = visibleChildren.some((c) => pathMatches(pathname, c.url))
         return {
           key: item.url,
           icon: <item.icon size={16} color={anyChildActive ? '#15803d' : '#374151'} />,
@@ -49,7 +53,7 @@ function buildMenuItems(
             </span>
           ),
           children: visibleChildren.map((child) => {
-            const active = pathname === child.url
+            const active = pathMatches(pathname, child.url)
             return {
               key: child.url,
               icon: <child.icon size={14} color={active ? '#ffffff' : '#6b7280'} />,
@@ -68,7 +72,7 @@ function buildMenuItems(
       }
 
       //  leaf item 
-      const active = pathname === item.url
+      const active = pathMatches(pathname, item.url)
       return {
         key: item.url,
         icon: <item.icon size={16} color={active ? '#ffffff' : '#374151'} />,
@@ -195,7 +199,11 @@ export default function AppSidebar({ collapsed }: { collapsed: boolean }) {
       <Menu
         theme="light"
         mode="inline"
-        selectedKeys={[pathname]}
+        selectedKeys={allItems.flatMap((item) => item.children ?? [item])
+          .filter((item) => pathMatches(pathname, item.url))
+          .sort((a, b) => b.url.length - a.url.length)
+          .slice(0, 1)
+          .map((item) => item.url)}
         defaultOpenKeys={defaultOpenKeys}
         inlineCollapsed={collapsed}
         onClick={({ key }) => navigate(key)}

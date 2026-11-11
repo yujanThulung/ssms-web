@@ -1,8 +1,10 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Space, Skeleton, Alert, message, Spin, Typography } from 'antd'
-import { ArrowLeft, Download, Printer, RefreshCw, Eye } from 'lucide-react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { Button, Space, Skeleton, Alert, message, Spin, Typography, Card, Dropdown, Row, Col } from 'antd'
+import { Download, Printer, RefreshCw, Eye, ChevronDown } from 'lucide-react'
 import { colors } from '../../../lib/designTokens'
+import { formatMoney } from '../../../features/fee-structures'
+import { PageHeader } from '../../../components/common/PageHeader'
 import {
   usePayment,
   useDownloadReceipt,
@@ -20,6 +22,8 @@ const { Text } = Typography
 export default function PaymentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const backToList = () => navigate((location.state as { from?: string } | null)?.from || '/accounts/payments')
   const [isPrinting, setIsPrinting] = useState(false)
 
   const { data: payment, isLoading, isError } = usePayment(id)
@@ -102,7 +106,7 @@ export default function PaymentDetailPage() {
           description="The payment you are looking for does not exist or you don't have permission to view it."
           showIcon
           action={
-            <Button onClick={() => navigate('/accounts/payments')}>Back to Payments</Button>
+            <Button onClick={() => backToList()}>Back to Payments</Button>
           }
         />
       </div>
@@ -111,37 +115,10 @@ export default function PaymentDetailPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Top bar */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '12px 24px',
-          backgroundColor: '#fff',
-          borderBottom: `1px solid ${colors.border}`,
-          position: 'sticky',
-          top: 0,
-          zIndex: 10,
-        }}
-      >
-        <Space size={12}>
-          <Button
-            icon={<ArrowLeft size={16} />}
-            onClick={() => navigate('/accounts/payments')}
-            type="text"
-          >
-            Back
-          </Button>
-          <div>
-            <span style={{ fontSize: 16, fontWeight: 700 }}>{payment.paymentNumber}</span>
-            <span style={{ marginLeft: 10 }}>
-              <PaymentMethodTag method={payment.paymentMethod} />
-            </span>
-          </div>
-        </Space>
-
-        <Space>
+      <PageHeader
+        title={<Space>{payment.paymentNumber}<PaymentMethodTag method={payment.paymentMethod} /></Space>}
+        description="Payment receipt and allocation details"
+        actions={<Space wrap>
           <Button
             icon={<Download size={15} />}
             onClick={handleDownload}
@@ -149,21 +126,6 @@ export default function PaymentDetailPage() {
           >
             Download Receipt
           </Button>
-          <Button
-            icon={<RefreshCw size={13} />}
-            onClick={handleRegenerate}
-            loading={isRegenerating}
-          >
-            Regenerate PDF
-          </Button>
-          {payment.receiptPdfUrl && (
-            <Button
-              icon={<Eye size={13} />}
-              onClick={() => window.open(payment.receiptPdfUrl, '_blank', 'noopener,noreferrer')}
-            >
-              Cloud PDF
-            </Button>
-          )}
           <Button
             type="primary"
             icon={<Printer size={15} />}
@@ -173,8 +135,22 @@ export default function PaymentDetailPage() {
           >
             Print Receipt
           </Button>
-        </Space>
-      </div>
+          <Dropdown menu={{ items: [
+            { key: 'regenerate', label: 'Regenerate PDF', icon: <RefreshCw size={14} />, onClick: handleRegenerate, disabled: isRegenerating },
+            ...(payment.receiptPdfUrl ? [{ key: 'cloud', label: 'Open cloud PDF', icon: <Eye size={14} />, onClick: () => window.open(payment.receiptPdfUrl, '_blank', 'noopener,noreferrer') }] : []),
+          ] }} trigger={['click']}><Button loading={isRegenerating}>More <ChevronDown size={14} /></Button></Dropdown>
+        </Space>}
+      />
+
+      <Card style={{ margin: '0 24px 16px', borderRadius: 12, borderColor: colors.border }}>
+        <Row gutter={[20, 16]}>
+          <Col xs={12} md={6}><Text type="secondary">Amount paid</Text><div style={{ fontSize: 20, fontWeight: 700, color: colors.success }}>{formatMoney(payment.amount)}</div></Col>
+          <Col xs={12} md={6}><Text type="secondary">Student</Text><div><Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/accounts/fee-profiles/${payment.student.id}`)}>{payment.student.name}</Button></div></Col>
+          <Col xs={12} md={6}><Text type="secondary">Invoice</Text><div><Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/accounts/invoices/${payment.invoice.id}`)}>{payment.invoice.invoiceNumber}</Button></div></Col>
+          <Col xs={12} md={6}><Text type="secondary">Payment date · Collected by</Text><div>{payment.paymentDateBS} BS · {payment.collectedBy?.name || '—'}</div></Col>
+          <Col xs={12} md={6}><Text type="secondary">Outstanding after payment</Text><div style={{ fontWeight: 600 }}>{formatMoney(payment.invoiceOutstandingAfter)}</div></Col>
+        </Row>
+      </Card>
 
       {/* Receipt preview */}
       {pdfError ? (

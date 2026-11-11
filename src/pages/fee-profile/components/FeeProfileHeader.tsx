@@ -1,4 +1,5 @@
-import { Avatar, Col, Divider, Row, Select, Space, Switch, Tag, Typography } from 'antd'
+import { useEffect, useState } from 'react'
+import { Avatar, Col, Divider, Image, Row, Select, Space, Switch, Tag, Typography } from 'antd'
 import {
   IdcardOutlined,
   TeamOutlined,
@@ -36,6 +37,7 @@ function initials(name: string) {
 
 export interface FeeProfileHeaderProps {
   profile: FeeProfile
+  studentPhoto?: string | null
   years: AcademicYear[]
   yearsLoading?: boolean
   academicYearId?: string
@@ -50,6 +52,7 @@ export interface FeeProfileHeaderProps {
 
 export function FeeProfileHeader({
   profile,
+  studentPhoto,
   years,
   yearsLoading,
   academicYearId,
@@ -61,6 +64,13 @@ export function FeeProfileHeader({
   includeBillingValidation,
   onIncludeBillingValidationChange,
 }: FeeProfileHeaderProps) {
+  const photo = studentPhoto || profile.student.photoUrl
+  const [photoError, setPhotoError] = useState(false)
+
+  useEffect(() => {
+    setPhotoError(false)
+  }, [photo])
+
   const structureStatus = profile.feeStructure?.status
   const structureColor = structureStatus
     ? FEE_STRUCTURE_STATUS_COLOR[structureStatus as keyof typeof FEE_STRUCTURE_STATUS_COLOR] ?? 'default'
@@ -100,19 +110,37 @@ export function FeeProfileHeader({
     >
       <Row gutter={[16, 16]} align="middle" justify="space-between">
         <Col flex="auto">
-          <Space size={14} align="start">
-            <Avatar
-              size={48}
-              style={{
-                background: colors.primaryLight,
-                color: colors.primary,
-                fontWeight: 700,
-                fontSize: 18,
-                flexShrink: 0,
-              }}
-            >
-              {initials(buildFullName(profile.student)) || <UserOutlined />}
-            </Avatar>
+          <Space size={14} align="center">
+            {photo && !photoError ? (
+              <Image
+                src={photo}
+                alt={buildFullName(profile.student)}
+                width={52}
+                height={52}
+                style={{
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: `2px solid ${colors.border}`,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                  flexShrink: 0,
+                }}
+                preview={{ mask: null }}
+                onError={() => setPhotoError(true)}
+              />
+            ) : (
+              <Avatar
+                size={52}
+                style={{
+                  background: colors.primaryLight,
+                  color: colors.primary,
+                  fontWeight: 700,
+                  fontSize: 18,
+                  flexShrink: 0,
+                }}
+              >
+                {initials(buildFullName(profile.student)) || <UserOutlined />}
+              </Avatar>
+            )}
             <div>
               <Title level={5} style={{ margin: 0, color: colors.text }}>
                 {buildFullName(profile.student)}

@@ -15,6 +15,7 @@ export interface FeeProfileStudent {
   fullName?: string | null
   rollNumber?: string | null
   admissionNumber?: string | null
+  photoUrl?: string | null
 }
 
 export interface FeeProfileAcademicYear {

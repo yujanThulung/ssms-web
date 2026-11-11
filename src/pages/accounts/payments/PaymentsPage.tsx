@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { parseAsInteger, parseAsString, parseAsStringEnum, useQueryState } from 'nuqs'
 import { Avatar, Button, Space, Tooltip } from 'antd'
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
@@ -35,10 +36,11 @@ import {
 } from '../../../features/payments'
 import { PaymentMethodTag } from './components/PaymentMethodTag'
 import { CreatePaymentDrawer } from './components/CreatePaymentDrawer'
-import { PaymentDetailDrawer } from './components/PaymentDetailDrawer'
 import { PaymentReceiptModal } from './components/PaymentReceiptModal'
 
 export default function PaymentsPage() {
+  const navigate = useNavigate()
+  const location = useLocation()
   const { can } = usePermission()
   const canCreate = can(FEATURES.PAYMENT, ACTIONS.CREATE)
 
@@ -47,7 +49,9 @@ export default function PaymentsPage() {
   const [search, setSearch] = useQueryState('search', parseAsString.withDefault(''))
   const [paymentMethod, setPaymentMethod] = useQueryState('paymentMethod', parseAsString.withDefault(''))
   const [academicYearId, setAcademicYearId] = useQueryState('academicYearId', parseAsString.withDefault(''))
-  const [dateRange, setDateRange] = useState<BsDateRange | null>(null)
+  const [dateFromBs, setDateFromBs] = useQueryState('dateFromBs', parseAsString.withDefault(''))
+  const [dateToBs, setDateToBs] = useQueryState('dateToBs', parseAsString.withDefault(''))
+  const dateRange: BsDateRange | null = dateFromBs || dateToBs ? { from: dateFromBs || undefined, to: dateToBs || undefined } : null
   const [sortBy, setSortBy] = useQueryState('sortBy', parseAsString.withDefault('paymentDate'))
   const [sortOrder, setSortOrder] = useQueryState(
     'sortOrder',
@@ -55,7 +59,6 @@ export default function PaymentsPage() {
   )
 
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false)
-  const [detailPaymentId, setDetailPaymentId] = useState<string | null>(null)
   const [receiptPayment, setReceiptPayment] = useState<Payment | null>(null)
 
   const dateFrom = dateRange?.from ? bsIsoToAdIso(dateRange.from) : undefined
@@ -93,15 +96,15 @@ export default function PaymentsPage() {
     return [
       {
         key: 'collected',
-        label: 'Page Collections',
-        value: `Rs. ${formatMoney(totalAmt)}`,
+        label: 'Collected (this page)',
+        value: formatMoney(totalAmt),
         icon: <Wallet size={18} />,
         color: colors.primary,
         iconBg: colors.primaryLight,
       },
       {
         key: 'total',
-        label: 'Total Payments',
+        label: 'Matching payments',
         value: total,
         icon: <Receipt size={18} />,
         color: colors.success,
@@ -109,14 +112,14 @@ export default function PaymentsPage() {
       },
       {
         key: 'cash',
-        label: 'Cash Payments (Page)',
+        label: 'Cash payments (this page)',
         value: cashCount,
         icon: <CheckCircle2 size={18} />,
         color: '#16a34a',
       },
       {
         key: 'bank',
-        label: 'Bank Transfers (Page)',
+        label: 'Bank transfers (this page)',
         value: bankCount,
         icon: <TrendingDown size={18} />,
         color: '#2563eb',
@@ -187,10 +190,8 @@ export default function PaymentsPage() {
         key: 'paymentNumber',
         sorter: true,
         sortOrder: sortBy === 'paymentNumber' ? (sortOrder === 'ASC' ? 'ascend' : 'descend') : undefined,
-        render: (num: string) => (
-          <span style={{ fontFamily: 'monospace', fontWeight: 600, color: colors.primary, fontSize: 13 }}>
-            {num}
-          </span>
+        render: (num: string, row: PaymentListItem) => (
+          <a href={`/accounts/payments/${row.id}`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); navigate(`/accounts/payments/${row.id}`, { state: { from: `${location.pathname}${location.search}` } }) }} style={{ fontFamily: 'monospace', fontWeight: 600, color: colors.primary, fontSize: 13 }}>{num}</a>
         ),
       },
       {
@@ -203,7 +204,7 @@ export default function PaymentsPage() {
             <Avatar size={28} style={{ backgroundColor: colors.primary, fontSize: 11 }}>
               {row.student?.name ? row.student.name.charAt(0).toUpperCase() : 'S'}
             </Avatar>
-            <span style={{ fontWeight: 600, color: colors.text }}>{row.student?.name || '—'}</span>
+            <a href={`/accounts/fee-profiles/${row.student?.id}`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); navigate(`/accounts/fee-profiles/${row.student?.id}`) }} style={{ fontWeight: 600, color: colors.primary }}>{row.student?.name || '—'}</a>
           </Space>
         ),
       },
@@ -211,9 +212,7 @@ export default function PaymentsPage() {
         title: 'Invoice',
         key: 'invoice',
         render: (_: unknown, row: PaymentListItem) => (
-          <span style={{ fontFamily: 'monospace', fontSize: 12, color: colors.secondaryText }}>
-            {row.invoice?.invoiceNumber || '—'}
-          </span>
+          <a href={`/accounts/invoices/${row.invoice?.id}`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); navigate(`/accounts/invoices/${row.invoice?.id}`) }} style={{ fontFamily: 'monospace', fontSize: 12, color: colors.primary }}>{row.invoice?.invoiceNumber || '—'}</a>
         ),
       },
       {
@@ -224,7 +223,7 @@ export default function PaymentsPage() {
         sortOrder: sortBy === 'amount' ? (sortOrder === 'ASC' ? 'ascend' : 'descend') : undefined,
         align: 'right' as const,
         render: (val: string) => (
-          <span style={{ fontWeight: 700, color: colors.success }}>Rs. {formatMoney(val)}</span>
+          <span style={{ fontWeight: 700, color: colors.success }}>{formatMoney(val)}</span>
         ),
       },
       {
@@ -255,7 +254,7 @@ export default function PaymentsPage() {
           return num <= 0 ? (
             <span style={{ color: colors.success, fontWeight: 600, fontSize: 12 }}>✓ Paid</span>
           ) : (
-            <span style={{ color: colors.error, fontSize: 12 }}>Rs. {formatMoney(num)}</span>
+            <span style={{ color: colors.error, fontSize: 12 }}>{formatMoney(num)}</span>
           )
         },
       },
@@ -278,7 +277,7 @@ export default function PaymentsPage() {
                 type="text"
                 size="small"
                 icon={<Eye size={15} color={colors.secondaryText} />}
-                onClick={() => setDetailPaymentId(row.id)}
+                onClick={() => navigate(`/accounts/payments/${row.id}`, { state: { from: `${location.pathname}${location.search}` } })}
               />
             </Tooltip>
             <Tooltip title="Print Receipt">
@@ -340,7 +339,7 @@ export default function PaymentsPage() {
               onClick={() => setCreateDrawerOpen(true)}
               style={{ backgroundColor: colors.primary }}
             >
-              Record Payment
+              Pay Bill
             </Button>
           ) : undefined
         }
@@ -363,7 +362,8 @@ export default function PaymentsPage() {
         onFilterChange={handleFilterChange}
         dateValues={{ paymentDate: dateRange }}
         onDateChange={(_key, range) => {
-          setDateRange(range)
+          setDateFromBs(range?.from || '')
+          setDateToBs(range?.to || '')
           setPage(1)
         }}
       />
@@ -378,7 +378,7 @@ export default function PaymentsPage() {
           loading={isFetching && !isLoading}
           onChange={handleTableChange}
           onRow={(row) => ({
-            onDoubleClick: () => setDetailPaymentId(row.id),
+            onClick: () => navigate(`/accounts/payments/${row.id}`, { state: { from: `${location.pathname}${location.search}` } }),
             style: { cursor: 'pointer' },
           })}
           pagination={{
@@ -401,11 +401,6 @@ export default function PaymentsPage() {
         }}
       />
 
-      <PaymentDetailDrawer
-        paymentId={detailPaymentId}
-        open={Boolean(detailPaymentId)}
-        onClose={() => setDetailPaymentId(null)}
-      />
 
       {/* Shown after a successful payment or via the row Print button */}
       <PaymentReceiptModal

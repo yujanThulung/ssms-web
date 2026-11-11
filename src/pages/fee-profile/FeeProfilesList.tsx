@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { parseAsInteger, parseAsString, useQueryState } from 'nuqs'
 import { Avatar, Button, Space, Tag, Typography } from 'antd'
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
@@ -46,6 +46,8 @@ function enrollmentOf(student: Student) {
 
 export default function FeeProfilesList() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const openStudent = (studentId: string) => navigate(`/accounts/fee-profiles/${studentId}${location.search}`, { state: { from: `${location.pathname}${location.search}` } })
 
   const [search, setSearch] = useQueryState('search', parseAsString.withDefault(''))
   const [academicYearId, setAcademicYearId] = useQueryState('academicYearId')
@@ -234,7 +236,7 @@ export default function FeeProfilesList() {
           icon={<EyeOutlined />}
           onClick={(event) => {
             event.stopPropagation()
-            navigate(`/accounts/fee-profiles/${student.id}`)
+            openStudent(student.id)
           }}
         >
           View
@@ -304,7 +306,7 @@ export default function FeeProfilesList() {
           dataSource={students}
           loading={isFetching}
           onChange={handleTableChange}
-          onRowClick={(student) => navigate(`/accounts/fee-profiles/${student.id}`)}
+          onRowClick={(student) => openStudent(student.id)}
           pagination={{
             current: page,
             pageSize: limit,
