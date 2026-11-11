@@ -6,3 +6,34 @@
   height: 3px !important;
   border-radius: 3px 3px 0 0;
 }
+
+/* Sidebar Menu Item Hover Effects */
+.sidebar-menu .ant-menu-item,
+.sidebar-menu .ant-menu-submenu-title {
+  border-radius: 8px !important;
+  margin: 2px 0 !important;
+  transition: all 0.15s ease !important;
+}
+
+.sidebar-menu .ant-menu-item:not(.ant-menu-item-selected):hover,
+.sidebar-menu .ant-menu-submenu-title:hover {
+  background-color: #f0fdf4 !important;
+  color: #15803d !important;
+}
+
+.sidebar-menu .ant-menu-item:not(.ant-menu-item-selected):hover svg,
+.sidebar-menu .ant-menu-submenu-title:hover svg {
+  color: #15803d !important;
+  transform: translateX(2px);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-menu .ant-menu-item-selected {
+  background-color: #16a34a !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.sidebar-menu .ant-menu-item-selected svg {
+  color: #ffffff !important;
+}

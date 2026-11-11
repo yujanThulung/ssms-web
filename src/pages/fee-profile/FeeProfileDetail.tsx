@@ -70,7 +70,11 @@ export default function FeeProfileDetail({ studentId }: { studentId: string }) {
 
   const { data: profile, isLoading, isFetching, error, refetch } = useFeeProfile(studentId, params)
   const { data: studentRes } = useStudent(studentId)
-  const studentPhoto = profile?.student?.photoUrl || studentRes?.data?.photoUrl || null
+  const studentPhoto =
+    profile?.student?.photoUrl ||
+    (studentRes?.data as any)?.photoUrl ||
+    (studentRes as any)?.photoUrl ||
+    null
   const { data: invoicesData } = useInvoices({ studentId, academicYearId: academicYearId || undefined, limit: 100 })
   const accountInvoices = useMemo<Invoice[]>(() => toListArray<Invoice>(invoicesData), [invoicesData])
   const { data: yearsData, isLoading: yearsLoading } = useAcademicYears({ limit: 100 })

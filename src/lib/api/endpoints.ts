@@ -26,6 +26,7 @@ export const ENDPOINTS = {
   },
   ACCOUNTS: {
     BASE: '/accounts',
+    DASHBOARD: '/accounts/dashboard',
     DETAIL: (id: string | number) => `/accounts/${id}`,
   },
   INVOICES: {
